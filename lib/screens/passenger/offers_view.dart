@@ -33,7 +33,7 @@ class OffersView extends StatelessWidget {
               RouteLines(from: ride.from, to: ride.to),
               const SizedBox(height: 12),
               Row(children: [
-                Text('Aap ka kiraya: ${pkr(ride.fare)}',
+                Text('Your fare: ${pkr(ride.fare)}',
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                 const Spacer(),
                 OutlinedButton(
@@ -50,7 +50,7 @@ class OffersView extends StatelessWidget {
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 CircularProgressIndicator(color: AppColors.dark),
                 SizedBox(height: 16),
-                Text('Qareebi drivers ko request bhej di gayi hai...',
+                Text('Your request has been sent to nearby drivers...',
                     style: TextStyle(color: AppColors.muted)),
               ]),
             )
@@ -109,7 +109,7 @@ class _OfferCard extends StatelessWidget {
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
                 onPressed: () => store.declineOffer(offer),
-                child: const Text('Mana karein'),
+                child: const Text('Decline'),
               ),
             ),
             const SizedBox(width: 10),

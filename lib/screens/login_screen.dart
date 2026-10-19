@@ -34,19 +34,19 @@ class _LoginScreenState extends State<LoginScreen> {
       case _Step.phone:
         final digits = phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
         if (digits.length != 10 || !digits.startsWith('3')) {
-          setState(() => error = 'Sahi mobile number likhein (3XX XXXXXXX)');
+          setState(() => error = 'Enter a valid mobile number (3XX XXXXXXX)');
           return;
         }
         setState(() => step = _Step.otp);
       case _Step.otp:
         if (otpCtrl.text.trim() != AppStore.demoOtp) {
-          setState(() => error = 'Code ghalat hai');
+          setState(() => error = 'Incorrect code');
           return;
         }
         setState(() => step = _Step.name);
       case _Step.name:
         if (nameCtrl.text.trim().length < 2) {
-          setState(() => error = 'Apna naam likhein');
+          setState(() => error = 'Please enter your name');
           return;
         }
         StoreScope.of(context)
@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text(error!, style: const TextStyle(color: AppColors.danger)),
               ],
               const Spacer(),
-              FilledButton(onPressed: _next, child: const Text('Aage')),
+              FilledButton(onPressed: _next, child: const Text('Next')),
             ],
           ),
         ),
@@ -105,15 +105,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String get _title => switch (step) {
-        _Step.phone => 'Apna phone number likhein',
-        _Step.otp => 'Code likhein',
-        _Step.name => 'Aap ka naam?',
+        _Step.phone => 'Enter your phone number',
+        _Step.otp => 'Enter the code',
+        _Step.name => 'What is your name?',
       };
 
   String get _subtitle => switch (step) {
-        _Step.phone => 'Hum aap ko SMS pe code bhejenge',
+        _Step.phone => 'We will send you a code by SMS',
         _Step.otp => 'Demo code: ${AppStore.demoOtp}',
-        _Step.name => 'Driver aap ko is naam se dekhega',
+        _Step.name => 'Drivers will see you by this name',
       };
 
   Widget _field() => switch (step) {
@@ -134,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: nameCtrl,
             autofocus: true,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(hintText: 'Naam'),
+            decoration: const InputDecoration(hintText: 'Name'),
           ),
       };
 }

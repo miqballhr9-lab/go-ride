@@ -33,7 +33,7 @@ class _PassengerHomeState extends State<PassengerHome> {
       (from != null && to != null) ? AppStore.suggestedFare(from!, to!) : null;
 
   void _pickTo() async {
-    final p = await pickPlace(context, 'Kahan jana hai?', exclude: from);
+    final p = await pickPlace(context, 'Where to?', exclude: from);
     if (p == null) return;
     setState(() {
       to = p;
@@ -42,7 +42,7 @@ class _PassengerHomeState extends State<PassengerHome> {
   }
 
   void _pickFrom() async {
-    final p = await pickPlace(context, 'Pickup kahan se?', exclude: to);
+    final p = await pickPlace(context, 'Pickup location', exclude: to);
     if (p == null) return;
     setState(() {
       from = p;
@@ -54,13 +54,13 @@ class _PassengerHomeState extends State<PassengerHome> {
     final fare = int.tryParse(fareCtrl.text.trim());
     setState(() => error = null);
     if (from == null || to == null) {
-      setState(() => error = 'Pickup aur manzil dono chunein');
+      setState(() => error = 'Choose both pickup and destination');
       return;
     }
     // inDrive ki tarah kam se kam kiraye ki had.
     final minFare = (_suggested! * 0.6).round();
     if (fare == null || fare < minFare) {
-      setState(() => error = 'Kam se kam kiraya ${pkr(minFare)} hai');
+      setState(() => error = 'Minimum fare is ${pkr(minFare)}');
       return;
     }
     StoreScope.of(context).createRequest(from!, to!, fare, commentCtrl.text.trim());
@@ -123,7 +123,7 @@ class _PassengerHomeState extends State<PassengerHome> {
           children: [
             _tile(Icons.circle, AppColors.brand, from?.name ?? 'Pickup', _pickFrom),
             const SizedBox(height: 8),
-            _tile(Icons.circle, AppColors.dark, to?.name ?? 'Kahan jana hai?', _pickTo,
+            _tile(Icons.circle, AppColors.dark, to?.name ?? 'Where to?', _pickTo,
                 placeholder: to == null),
             const SizedBox(height: 8),
             TextField(
@@ -135,8 +135,8 @@ class _PassengerHomeState extends State<PassengerHome> {
                   child: Text('Rs', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                 ),
                 prefixIconConstraints: const BoxConstraints(minWidth: 0),
-                hintText: 'Apna kiraya batayein',
-                helperText: _suggested == null ? null : 'Mashwara kiraya: ${pkr(_suggested!)}',
+                hintText: 'Offer your fare',
+                helperText: _suggested == null ? null : 'Recommended fare: ${pkr(_suggested!)}',
               ),
             ),
             const SizedBox(height: 8),
@@ -152,7 +152,7 @@ class _PassengerHomeState extends State<PassengerHome> {
               Text(error!, style: const TextStyle(color: AppColors.danger)),
             ],
             const SizedBox(height: 12),
-            FilledButton(onPressed: _findDriver, child: const Text('Driver dhoondein')),
+            FilledButton(onPressed: _findDriver, child: const Text('Find a driver')),
           ],
         ),
       ),

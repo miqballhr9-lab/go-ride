@@ -40,18 +40,18 @@ class DriverHome extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: AppColors.dark, borderRadius: BorderRadius.circular(16)),
           child: Row(children: [
-            _stat('Aaj ki kamai', pkr(store.todayEarnings)),
+            _stat('Today\'s earnings', pkr(store.todayEarnings)),
             _stat('Rides', '${store.todayTrips}'),
-            _stat('Gari', user.vehicle!.plate),
+            _stat('Car', user.vehicle!.plate),
           ]),
         ),
         Expanded(
           child: !store.driverOnline
               ? const _Empty(
                   icon: Icons.power_settings_new,
-                  text: 'Ride requests dekhne ke liye Online ho jayen')
+                  text: 'Go online to see ride requests')
               : store.openRequests.isEmpty
-                  ? const _Empty(icon: Icons.hourglass_empty, text: 'Requests ka intezar...')
+                  ? const _Empty(icon: Icons.hourglass_empty, text: 'Waiting for requests...')
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: store.openRequests.length,
@@ -129,7 +129,7 @@ class _RequestCard extends StatelessWidget {
               const Row(children: [
                 SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
                 SizedBox(width: 8),
-                Text('Offer bhej di, passenger ke jawab ka intezar...'),
+                Text('Offer sent, waiting for the passenger...'),
               ]),
             ],
           ]),
@@ -160,10 +160,10 @@ void _openOfferSheet(BuildContext context, RideRequest req) {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => send(req.fare),
-              child: Text('${pkr(req.fare)} mein accept karein'),
+              child: Text('Accept for ${pkr(req.fare)}'),
             ),
             const SizedBox(height: 16),
-            const Text('Ya apna kiraya offer karein:', style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text('Or offer your fare:', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Row(children: [
               for (final bump in [20, 50, 100]) ...[

@@ -28,7 +28,7 @@ class _DriverRegistrationState extends State<DriverRegistration> {
     super.dispose();
   }
 
-  String? _required(String? v) => (v == null || v.trim().isEmpty) ? 'Zaroori hai' : null;
+  String? _required(String? v) => (v == null || v.trim().isEmpty) ? 'Required' : null;
 
   void _submit() {
     if (!_form.currentState!.validate()) return;
@@ -52,7 +52,7 @@ class _DriverRegistrationState extends State<DriverRegistration> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text('Driver banne ke liye apni maloomat dein. Control office verify karke account approve karega.',
+            const Text('Enter your details to become a driver. Our team will verify and approve your account.',
                 style: TextStyle(color: AppColors.muted)),
             const SizedBox(height: 16),
             TextFormField(
@@ -61,19 +61,19 @@ class _DriverRegistrationState extends State<DriverRegistration> {
               decoration: const InputDecoration(labelText: 'CNIC number', hintText: '35202-1234567-1'),
               validator: (v) {
                 final d = (v ?? '').replaceAll(RegExp(r'\D'), '');
-                return d.length == 13 ? null : '13 hindson ka CNIC likhein';
+                return d.length == 13 ? null : 'Enter a 13-digit CNIC';
               },
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: model,
-              decoration: const InputDecoration(labelText: 'Gari ka model', hintText: 'Suzuki Alto'),
+              decoration: const InputDecoration(labelText: 'Car model', hintText: 'Suzuki Alto'),
               validator: _required,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: color,
-              decoration: const InputDecoration(labelText: 'Rang', hintText: 'White'),
+              decoration: const InputDecoration(labelText: 'Color', hintText: 'White'),
               validator: _required,
             ),
             const SizedBox(height: 12),
@@ -84,15 +84,15 @@ class _DriverRegistrationState extends State<DriverRegistration> {
               validator: _required,
             ),
             const SizedBox(height: 12),
-            for (final doc in ['Driving license ki photo', 'CNIC ki photo', 'Gari ki photo'])
+            for (final doc in ['Driving license photo', 'CNIC photo', 'Car photo'])
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.upload_file),
                 title: Text(doc),
-                subtitle: const Text('Upload: Firebase lagne ke baad'),
+                subtitle: const Text('Upload: available after Firebase setup'),
               ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: _submit, child: const Text('Registration mukammal')),
+            FilledButton(onPressed: _submit, child: const Text('Complete registration')),
           ],
         ),
       ),

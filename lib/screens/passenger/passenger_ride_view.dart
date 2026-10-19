@@ -25,10 +25,10 @@ class _PassengerRideViewState extends State<PassengerRideView> {
     final d = offer.driver;
 
     final (title, subtitle) = switch (ride.status) {
-      RideStatus.driverComing => ('Driver aa raha hai', '${offer.etaMinutes} min mein pohanchega'),
-      RideStatus.driverArrived => ('Driver pohanch gaya', 'Bahar aa jayen, ${d.vehicle.color} ${d.vehicle.model}'),
-      RideStatus.inProgress => ('Safar jaari hai', 'Manzil: ${ride.to.name}'),
-      RideStatus.completed => ('Aap pohanch gaye', 'Driver ko ${pkr(offer.fare)} cash ada karein'),
+      RideStatus.driverComing => ('Driver is on the way', 'Arriving in ${offer.etaMinutes} min'),
+      RideStatus.driverArrived => ('Your driver has arrived', 'Look for a ${d.vehicle.color} ${d.vehicle.model}'),
+      RideStatus.inProgress => ('On the way', 'Destination: ${ride.to.name}'),
+      RideStatus.completed => ('You have arrived', 'Please pay ${pkr(offer.fare)} cash to the driver'),
       _ => ('', ''),
     };
 
@@ -69,11 +69,11 @@ class _PassengerRideViewState extends State<PassengerRideView> {
                   const SizedBox(height: 12),
                   RouteLines(from: ride.from, to: ride.to),
                   const SizedBox(height: 8),
-                  Text('Kiraya: ${pkr(offer.fare)} (cash)',
+                  Text('Fare: ${pkr(offer.fare)} (cash)',
                       style: const TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 16),
                   if (ride.status == RideStatus.completed) ...[
-                    const Text('Driver ko rating dein', textAlign: TextAlign.center),
+                    const Text('Rate your driver', textAlign: TextAlign.center),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -88,13 +88,13 @@ class _PassengerRideViewState extends State<PassengerRideView> {
                     ),
                     FilledButton(
                       onPressed: () => store.ratePassengerRide(stars),
-                      child: const Text('Mukammal'),
+                      child: const Text('Done'),
                     ),
                   ] else
                     Row(children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _snack(context, 'Call: demo mein dastyab nahi'),
+                          onPressed: () => _snack(context, 'Calling is not available in the demo'),
                           icon: const Icon(Icons.call),
                           label: const Text('Call'),
                         ),
@@ -105,14 +105,14 @@ class _PassengerRideViewState extends State<PassengerRideView> {
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
                             onPressed: store.cancelPassengerRide,
-                            child: const Text('Ride cancel'),
+                            child: const Text('Cancel ride'),
                           ),
                         )
                       else
                         Expanded(
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-                            onPressed: () => _snack(context, 'SOS: emergency contact ko alert (demo)'),
+                            onPressed: () => _snack(context, 'SOS: emergency contacts alerted (demo)'),
                             icon: const Icon(Icons.sos),
                             label: const Text('SOS'),
                           ),

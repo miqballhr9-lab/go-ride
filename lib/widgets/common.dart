@@ -125,7 +125,7 @@ class _PlacePickerState extends State<_PlacePicker> {
           const SizedBox(height: 12),
           TextField(
             autofocus: true,
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Jagah dhoondein'),
+            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search for a place'),
             onChanged: (v) => setState(() => query = v),
           ),
           Expanded(
@@ -229,7 +229,7 @@ class HistoryScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Ride history')),
       body: store.history.isEmpty
-          ? const Center(child: Text('Abhi koi ride nahi', style: TextStyle(color: AppColors.muted)))
+          ? const Center(child: Text('No rides yet', style: TextStyle(color: AppColors.muted)))
           : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: store.history.length,
@@ -243,7 +243,7 @@ class HistoryScreen extends StatelessWidget {
                     Text(pkr(r.finalFare), style: const TextStyle(fontWeight: FontWeight.w800)),
                     Text(r.isMine ? 'Passenger' : 'Driver',
                         style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                    Text(done ? 'Mukammal' : 'Cancel',
+                    Text(done ? 'Completed' : 'Cancelled',
                         style: TextStyle(color: done ? Colors.green : AppColors.danger, fontSize: 12)),
                   ]),
                 ]);

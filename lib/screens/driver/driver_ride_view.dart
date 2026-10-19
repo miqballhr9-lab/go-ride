@@ -16,11 +16,11 @@ class DriverRideView extends StatelessWidget {
     final fare = ride.finalFare;
 
     final (title, buttonText, action) = switch (ride.status) {
-      RideStatus.driverComing => ('Passenger ko lene jayen', 'Main pohanch gaya', store.driverArrived),
-      RideStatus.driverArrived => ('Passenger ka intezar', 'Ride shuru karein', store.driverStartRide),
-      RideStatus.inProgress => ('Manzil ki taraf', 'Ride mukammal', store.driverCompleteRide),
-      RideStatus.completed => ('${pkr(fare)} cash wasool karein', 'Theek hai', store.closeDriverRide),
-      _ => ('', 'Theek hai', store.closeDriverRide),
+      RideStatus.driverComing => ('Go to pickup', 'I have arrived', store.driverArrived),
+      RideStatus.driverArrived => ('Waiting for passenger', 'Start ride', store.driverStartRide),
+      RideStatus.inProgress => ('Heading to destination', 'Complete ride', store.driverCompleteRide),
+      RideStatus.completed => ('Collect ${pkr(fare)} cash', 'OK', store.closeDriverRide),
+      _ => ('', 'OK', store.closeDriverRide),
     };
 
     return Scaffold(
@@ -57,7 +57,7 @@ class DriverRideView extends StatelessWidget {
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: store.driverCancelRide,
-                    child: const Text('Ride cancel', style: TextStyle(color: AppColors.danger)),
+                    child: const Text('Cancel ride', style: TextStyle(color: AppColors.danger)),
                   ),
                 ],
               ],

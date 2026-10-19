@@ -312,7 +312,7 @@ class AppStore extends ChangeNotifier {
       from: from,
       to: to,
       fare: fare,
-      comment: _rand.nextBool() ? '' : ['2 log hain', 'Saman hai', 'Jaldi aa jayen', 'AC chahiye'][_rand.nextInt(4)],
+      comment: _rand.nextBool() ? '' : ['2 passengers', 'I have luggage', 'Please hurry', 'Need AC'][_rand.nextInt(4)],
       isMine: false,
     );
   }
