@@ -16,13 +16,18 @@ class DriverRegistration extends StatefulWidget {
 class _DriverRegistrationState extends State<DriverRegistration> {
   final _form = GlobalKey<FormState>();
   final cnic = TextEditingController();
+  final license = TextEditingController();
   final model = TextEditingController();
   final color = TextEditingController();
   final plate = TextEditingController();
+  final year = TextEditingController();
+  VehicleType type = VehicleType.mini;
+  final Set<String> docs = {};
+  String? error;
 
   @override
   void dispose() {
-    for (final c in [cnic, model, color, plate]) {
+    for (final c in [cnic, license, model, color, plate, year]) {
       c.dispose();
     }
     super.dispose();
@@ -31,30 +36,43 @@ class _DriverRegistrationState extends State<DriverRegistration> {
   String? _required(String? v) => (v == null || v.trim().isEmpty) ? 'Required' : null;
 
   void _submit() {
+    setState(() => error = null);
     if (!_form.currentState!.validate()) return;
+    final missing = driverDocuments.where((d) => !docs.contains(d)).toList();
+    if (missing.isNotEmpty) {
+      setState(() => error = 'Please add: ${missing.join(', ')}');
+      return;
+    }
     StoreScope.of(context).registerDriver(
       cnic: cnic.text.trim(),
+      licenseNo: license.text.trim().toUpperCase(),
+      documents: docs,
       vehicle: Vehicle(
+        type: type,
         model: model.text.trim(),
         color: color.text.trim(),
         plate: plate.text.trim().toUpperCase(),
+        year: int.parse(year.text.trim()),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final store = StoreScope.of(context);
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(title: const Text('Driver registration')),
+      appBar: AppBar(title: const Text('Become a driver')),
       body: Form(
         key: _form,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text('Enter your details to become a driver. Our team will verify and approve your account.',
+            const Text('Earn with Go Ride on your own schedule. Fill in your details and our team will '
+                'verify your documents within 24 hours.',
                 style: TextStyle(color: AppColors.muted)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            const _Section('Personal details'),
             TextFormField(
               controller: cnic,
               keyboardType: TextInputType.number,
@@ -66,16 +84,58 @@ class _DriverRegistrationState extends State<DriverRegistration> {
             ),
             const SizedBox(height: 12),
             TextFormField(
-              controller: model,
-              decoration: const InputDecoration(labelText: 'Car model', hintText: 'Suzuki Alto'),
+              controller: license,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(labelText: 'Driving license number'),
               validator: _required,
+            ),
+            const SizedBox(height: 20),
+            const _Section('Vehicle'),
+            SegmentedButton<VehicleType>(
+              segments: [
+                for (final t in VehicleType.values)
+                  ButtonSegment(
+                    value: t,
+                    label: Text(t.label),
+                    icon: Icon(t == VehicleType.moto ? Icons.two_wheeler : Icons.directions_car),
+                  ),
+              ],
+              selected: {type},
+              onSelectionChanged: (s) => setState(() => type = s.first),
             ),
             const SizedBox(height: 12),
             TextFormField(
-              controller: color,
-              decoration: const InputDecoration(labelText: 'Color', hintText: 'White'),
+              controller: model,
+              decoration: InputDecoration(
+                  labelText: 'Make and model',
+                  hintText: type == VehicleType.moto ? 'Honda CD 70' : 'Suzuki Alto'),
               validator: _required,
             ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: TextFormField(
+                  controller: color,
+                  decoration: const InputDecoration(labelText: 'Color', hintText: 'White'),
+                  validator: _required,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: year,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Year', hintText: '2018'),
+                  validator: (v) {
+                    final y = int.tryParse(v ?? '');
+                    final minYear = type == VehicleType.ac ? 2012 : 2005;
+                    if (y == null || y > DateTime.now().year) return 'Enter a valid year';
+                    if (y < minYear) return '$minYear or newer';
+                    return null;
+                  },
+                ),
+              ),
+            ]),
             const SizedBox(height: 12),
             TextFormField(
               controller: plate,
@@ -83,19 +143,46 @@ class _DriverRegistrationState extends State<DriverRegistration> {
               decoration: const InputDecoration(labelText: 'Number plate', hintText: 'LEA-1234'),
               validator: _required,
             ),
-            const SizedBox(height: 12),
-            for (final doc in ['Driving license photo', 'CNIC photo', 'Car photo'])
+            const SizedBox(height: 20),
+            const _Section('Documents'),
+            for (final doc in driverDocuments)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.upload_file),
+                leading: Icon(docs.contains(doc) ? Icons.check_circle : Icons.add_a_photo_outlined,
+                    color: docs.contains(doc) ? Colors.green : AppColors.dark),
                 title: Text(doc),
-                subtitle: const Text('Upload: available after Firebase setup'),
+                subtitle: Text(docs.contains(doc) ? 'Added' : 'Tap to add a photo'),
+                trailing: docs.contains(doc)
+                    ? TextButton(onPressed: () => setState(() => docs.remove(doc)), child: const Text('Remove'))
+                    : null,
+                // Asli app mein yahan camera/gallery khulegi aur photo Firebase Storage pe jayegi.
+                onTap: () => setState(() => docs.add(doc)),
               ),
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(error!, style: const TextStyle(color: AppColors.danger)),
+            ],
             const SizedBox(height: 16),
-            FilledButton(onPressed: _submit, child: const Text('Complete registration')),
+            FilledButton(onPressed: _submit, child: const Text('Submit application')),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => store.switchMode(AppMode.passenger),
+              child: const Text('Back to passenger mode'),
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+class _Section extends StatelessWidget {
+  final String title;
+  const _Section(this.title);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+      );
 }

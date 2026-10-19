@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../main.dart';
 import '../../models.dart';
+import '../../store.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
+import '../chat_screen.dart';
 
 /// Offer accept hone ke baad passenger ka ride screen.
 class PassengerRideView extends StatefulWidget {
@@ -21,22 +23,43 @@ class _PassengerRideViewState extends State<PassengerRideView> {
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
     final ride = widget.ride;
-    final offer = ride.acceptedOffer!;
-    final d = offer.driver;
+    final offer = ride.acceptedOffer;
+    if (offer == null) {
+      // Driver milne se pehle hi support ne request cancel kar di.
+      return Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.cancel_outlined, size: 64, color: AppColors.danger),
+              const SizedBox(height: 12),
+              const Text('Ride request cancelled',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+              Text(ride.cancelReason ?? '', style: const TextStyle(color: AppColors.muted)),
+              const SizedBox(height: 24),
+              FilledButton(onPressed: () => store.closePassengerRide(), child: const Text('OK')),
+            ]),
+          ),
+        ),
+      );
+    }
+    final d = store.userById(offer.driverId);
+    final v = d.driver!.vehicle;
 
     final (title, subtitle) = switch (ride.status) {
       RideStatus.driverComing => ('Driver is on the way', 'Arriving in ${offer.etaMinutes} min'),
-      RideStatus.driverArrived => ('Your driver has arrived', 'Look for a ${d.vehicle.color} ${d.vehicle.model}'),
+      RideStatus.driverArrived => ('Your driver has arrived', 'Look for a ${v.color} ${v.model}'),
       RideStatus.inProgress => ('On the way', 'Destination: ${ride.to.name}'),
       RideStatus.completed => ('You have arrived', 'Please pay ${pkr(offer.fare)} cash to the driver'),
-      _ => ('', ''),
+      RideStatus.cancelled => ('Ride cancelled', ride.cancelReason ?? ''),
+      RideStatus.searching => ('', ''),
     };
 
     return Scaffold(
       body: Column(
         children: [
           Expanded(child: RideMap(from: ride.from, to: ride.to)),
-          Container(
+          Padding(
             padding: const EdgeInsets.all(16),
             child: SafeArea(
               top: false,
@@ -52,9 +75,9 @@ class _PassengerRideViewState extends State<PassengerRideView> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('${d.name}  ★ ${d.rating}',
+                        Text('${d.name}  ★ ${d.driverRating.toStringAsFixed(2)}',
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                        Text('${d.vehicle.color} ${d.vehicle.model}'),
+                        Text('${v.color} ${v.model}'),
                       ]),
                     ),
                     Container(
@@ -63,61 +86,15 @@ class _PassengerRideViewState extends State<PassengerRideView> {
                         border: Border.all(color: AppColors.dark, width: 2),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(d.vehicle.plate, style: const TextStyle(fontWeight: FontWeight.w800)),
+                      child: Text(v.plate, style: const TextStyle(fontWeight: FontWeight.w800)),
                     ),
                   ]),
                   const SizedBox(height: 12),
                   RouteLines(from: ride.from, to: ride.to),
                   const SizedBox(height: 8),
-                  Text('Fare: ${pkr(offer.fare)} (cash)',
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  Text('Fare: ${pkr(offer.fare)} (cash)', style: const TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 16),
-                  if (ride.status == RideStatus.completed) ...[
-                    const Text('Rate your driver', textAlign: TextAlign.center),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 1; i <= 5; i++)
-                          IconButton(
-                            iconSize: 36,
-                            onPressed: () => setState(() => stars = i),
-                            icon: Icon(i <= stars ? Icons.star_rounded : Icons.star_outline_rounded,
-                                color: Colors.amber),
-                          ),
-                      ],
-                    ),
-                    FilledButton(
-                      onPressed: () => store.ratePassengerRide(stars),
-                      child: const Text('Done'),
-                    ),
-                  ] else
-                    Row(children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _snack(context, 'Calling is not available in the demo'),
-                          icon: const Icon(Icons.call),
-                          label: const Text('Call'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      if (ride.status != RideStatus.inProgress)
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-                            onPressed: store.cancelPassengerRide,
-                            child: const Text('Cancel ride'),
-                          ),
-                        )
-                      else
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-                            onPressed: () => _snack(context, 'SOS: emergency contacts alerted (demo)'),
-                            icon: const Icon(Icons.sos),
-                            label: const Text('SOS'),
-                          ),
-                        ),
-                    ]),
+                  ..._actions(store, ride),
                 ],
               ),
             ),
@@ -127,6 +104,58 @@ class _PassengerRideViewState extends State<PassengerRideView> {
     );
   }
 
-  void _snack(BuildContext context, String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  List<Widget> _actions(AppStore store, RideRequest ride) {
+    switch (ride.status) {
+      case RideStatus.completed:
+        return [
+          const Text('Rate your driver', textAlign: TextAlign.center),
+          StarPicker(value: stars, onChanged: (v) => setState(() => stars = v)),
+          FilledButton(onPressed: () => store.closePassengerRide(stars: stars), child: const Text('Done')),
+        ];
+      case RideStatus.cancelled:
+        return [
+          FilledButton(onPressed: () => store.closePassengerRide(), child: const Text('Find another ride')),
+        ];
+      default:
+        final started = ride.status == RideStatus.inProgress;
+        return [
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                    context, MaterialPageRoute(builder: (_) => RideChatScreen(ride: ride))),
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: Text(ride.chat.isEmpty ? 'Chat' : 'Chat (${ride.chat.length})'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => showSnack(context, 'Trip details copied to share (demo)'),
+                icon: const Icon(Icons.share_location),
+                label: const Text('Share trip'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          if (!started)
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+              onPressed: () async {
+                final reason =
+                    await pickReason(context, 'Why are you cancelling?', AppStore.passengerCancelReasons);
+                if (reason != null) store.cancelPassengerRide(reason);
+              },
+              child: const Text('Cancel ride'),
+            )
+          else
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+              onPressed: () => showSnack(context, 'SOS: calling 15 and alerting Go Ride support (demo)'),
+              icon: const Icon(Icons.sos),
+              label: const Text('SOS'),
+            ),
+        ];
+    }
+  }
 }

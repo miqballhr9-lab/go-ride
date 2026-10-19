@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../admin/admin_login.dart';
 import '../main.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -11,25 +12,31 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-enum _Step { phone, otp, name }
+enum _Step { phone, otp, signup }
 
 class _LoginScreenState extends State<LoginScreen> {
   _Step step = _Step.phone;
   final phoneCtrl = TextEditingController();
   final otpCtrl = TextEditingController();
   final nameCtrl = TextEditingController();
+  final emailCtrl = TextEditingController();
+  String city = AppStore.cities.first;
+  bool acceptedTerms = false;
   String? error;
 
   @override
   void dispose() {
-    phoneCtrl.dispose();
-    otpCtrl.dispose();
-    nameCtrl.dispose();
+    for (final c in [phoneCtrl, otpCtrl, nameCtrl, emailCtrl]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
+  String get _phone => '+92${phoneCtrl.text.replaceAll(RegExp(r'\D'), '')}';
+
   void _next() {
     setState(() => error = null);
+    final store = StoreScope.of(context);
     switch (step) {
       case _Step.phone:
         final digits = phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
@@ -37,20 +44,36 @@ class _LoginScreenState extends State<LoginScreen> {
           setState(() => error = 'Enter a valid mobile number (3XX XXXXXXX)');
           return;
         }
+        otpCtrl.clear();
         setState(() => step = _Step.otp);
       case _Step.otp:
         if (otpCtrl.text.trim() != AppStore.demoOtp) {
           setState(() => error = 'Incorrect code');
           return;
         }
-        setState(() => step = _Step.name);
-      case _Step.name:
+        switch (store.login(_phone)) {
+          case LoginResult.ok:
+            break;
+          case LoginResult.newUser:
+            setState(() => step = _Step.signup);
+          case LoginResult.blocked:
+            setState(() => error = 'This account has been blocked. Please contact Go Ride support.');
+        }
+      case _Step.signup:
+        final email = emailCtrl.text.trim();
         if (nameCtrl.text.trim().length < 2) {
-          setState(() => error = 'Please enter your name');
+          setState(() => error = 'Please enter your full name');
           return;
         }
-        StoreScope.of(context)
-            .login('+92${phoneCtrl.text.replaceAll(RegExp(r'\D'), '')}', nameCtrl.text.trim());
+        if (email.isNotEmpty && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+          setState(() => error = 'Enter a valid email or leave it empty');
+          return;
+        }
+        if (!acceptedTerms) {
+          setState(() => error = 'Please accept the terms to continue');
+          return;
+        }
+        store.signup(phone: _phone, name: nameCtrl.text.trim(), email: email, city: city);
     }
   }
 
@@ -63,41 +86,66 @@ class _LoginScreenState extends State<LoginScreen> {
               leading: BackButton(
                 onPressed: () => setState(() {
                   error = null;
-                  step = _Step.values[step.index - 1];
+                  step = _Step.phone;
                 }),
               ),
             ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (step == _Step.phone) ...[
-                const SizedBox(height: 40),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.brand,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text('Go Ride',
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+        child: LayoutBuilder(
+          builder: (context, c) => SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: c.maxHeight - 48),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (step == _Step.phone) ...[
+                      const SizedBox(height: 40),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text('Go Ride',
+                            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                    Text(_title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    Text(_subtitle, style: const TextStyle(color: AppColors.muted)),
+                    const SizedBox(height: 24),
+                    ..._fields(),
+                    if (error != null) ...[
+                      const SizedBox(height: 8),
+                      Text(error!, style: const TextStyle(color: AppColors.danger)),
+                    ],
+                    const Spacer(),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _next,
+                      child: Text(step == _Step.signup ? 'Create account' : 'Next'),
+                    ),
+                    if (step == _Step.phone)
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () => Navigator.push(
+                              context, MaterialPageRoute(builder: (_) => const AdminLoginScreen())),
+                          icon: const Icon(Icons.admin_panel_settings_outlined, size: 18),
+                          label: const Text('Control office login'),
+                          style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 32),
-              ],
-              Text(_title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              Text(_subtitle, style: const TextStyle(color: AppColors.muted)),
-              const SizedBox(height: 24),
-              _field(),
-              if (error != null) ...[
-                const SizedBox(height: 8),
-                Text(error!, style: const TextStyle(color: AppColors.danger)),
-              ],
-              const Spacer(),
-              FilledButton(onPressed: _next, child: const Text('Next')),
-            ],
+              ),
+            ),
           ),
         ),
       ),
@@ -107,34 +155,65 @@ class _LoginScreenState extends State<LoginScreen> {
   String get _title => switch (step) {
         _Step.phone => 'Enter your phone number',
         _Step.otp => 'Enter the code',
-        _Step.name => 'What is your name?',
+        _Step.signup => 'Create your account',
       };
 
   String get _subtitle => switch (step) {
         _Step.phone => 'We will send you a code by SMS',
-        _Step.otp => 'Demo code: ${AppStore.demoOtp}',
-        _Step.name => 'Drivers will see you by this name',
+        _Step.otp => 'Sent to $_phone · Demo code: ${AppStore.demoOtp}',
+        _Step.signup => 'Drivers will see your name and rating',
       };
 
-  Widget _field() => switch (step) {
-        _Step.phone => TextField(
-            controller: phoneCtrl,
-            keyboardType: TextInputType.phone,
-            autofocus: true,
-            decoration: const InputDecoration(prefixText: '+92  ', hintText: '300 1234567'),
-          ),
-        _Step.otp => TextField(
-            controller: otpCtrl,
-            keyboardType: TextInputType.number,
-            maxLength: 4,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: '----', counterText: ''),
-          ),
-        _Step.name => TextField(
-            controller: nameCtrl,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(hintText: 'Name'),
-          ),
+  List<Widget> _fields() => switch (step) {
+        _Step.phone => [
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              autofocus: true,
+              decoration: const InputDecoration(prefixText: '+92  ', hintText: '300 1234567'),
+              onSubmitted: (_) => _next(),
+            ),
+          ],
+        _Step.otp => [
+            TextField(
+              controller: otpCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: '----', counterText: ''),
+              onSubmitted: (_) => _next(),
+            ),
+          ],
+        _Step.signup => [
+            TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Full name'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Email (optional)'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: city,
+              decoration: const InputDecoration(labelText: 'City'),
+              items: [
+                for (final c in AppStore.cities) DropdownMenuItem(value: c, child: Text(c)),
+              ],
+              onChanged: (v) => setState(() => city = v!),
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: acceptedTerms,
+              onChanged: (v) => setState(() => acceptedTerms = v ?? false),
+              title: const Text('I accept the Terms of Service and Privacy Policy'),
+            ),
+          ],
       };
 }

@@ -1,0 +1,79 @@
+import 'package:flutter/material.dart';
+
+import '../main.dart';
+import '../store.dart';
+import '../theme.dart';
+
+class AdminLoginScreen extends StatefulWidget {
+  const AdminLoginScreen({super.key});
+
+  @override
+  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
+}
+
+class _AdminLoginScreenState extends State<AdminLoginScreen> {
+  final user = TextEditingController();
+  final pass = TextEditingController();
+  String? error;
+
+  @override
+  void dispose() {
+    user.dispose();
+    pass.dispose();
+    super.dispose();
+  }
+
+  void _login() {
+    if (StoreScope.of(context).adminLogin(user.text, pass.text)) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    } else {
+      setState(() => error = 'Wrong username or password');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.dark,
+      appBar: AppBar(
+        backgroundColor: AppColors.dark,
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const Text('Go Ride', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('Control office', style: TextStyle(color: AppColors.muted)),
+                  const SizedBox(height: 24),
+                  TextField(controller: user, decoration: const InputDecoration(labelText: 'Username')),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: pass,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: 'Password'),
+                    onSubmitted: (_) => _login(),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!, style: const TextStyle(color: AppColors.danger)),
+                  ],
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: _login, child: const Text('Sign in')),
+                  const SizedBox(height: 12),
+                  const Text('Demo: ${AppStore.adminUsername} / ${AppStore.adminPassword}',
+                      textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

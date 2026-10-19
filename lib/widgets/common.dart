@@ -4,16 +4,31 @@ import 'package:latlong2/latlong.dart';
 
 import '../main.dart';
 import '../models.dart';
+import '../screens/profile_screen.dart';
+import '../screens/support/support_home.dart';
 import '../store.dart';
 import '../theme.dart';
 
 String pkr(int amount) => 'Rs $amount';
 
-/// OpenStreetMap wala map (free). Pickup hara, drop kala marker.
+String timeAgo(DateTime t) {
+  final d = DateTime.now().difference(t);
+  if (d.inMinutes < 1) return 'just now';
+  if (d.inHours < 1) return '${d.inMinutes} min ago';
+  if (d.inDays < 1) return '${d.inHours} h ago';
+  return '${d.inDays} d ago';
+}
+
+String hhmm(DateTime t) =>
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+/// OpenStreetMap wala map (free). Pickup hara, drop kala marker, aur gariyan.
 class RideMap extends StatelessWidget {
   final Place? from;
   final Place? to;
-  const RideMap({super.key, this.from, this.to});
+  final List<LatLng> cars;
+  final double zoom;
+  const RideMap({super.key, this.from, this.to, this.cars = const [], this.zoom = 13});
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +42,7 @@ class RideMap extends StatelessWidget {
           )
         : MapOptions(
             initialCenter: points.isEmpty ? AppStore.cityCenter : points.first,
-            initialZoom: 13,
+            initialZoom: zoom,
           );
     return FlutterMap(
       // Key badalne se camera naye points pe chala jata hai.
@@ -43,14 +58,28 @@ class RideMap extends StatelessWidget {
             Polyline(points: points, strokeWidth: 5, color: AppColors.dark),
           ]),
         MarkerLayer(markers: [
-          if (from != null) _marker(from!.point, AppColors.brand),
-          if (to != null) _marker(to!.point, AppColors.dark),
+          for (final c in cars)
+            Marker(
+              point: c,
+              width: 30,
+              height: 30,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.dark,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                ),
+                child: const Icon(Icons.directions_car, size: 16, color: AppColors.brand),
+              ),
+            ),
+          if (from != null) _pin(from!.point, AppColors.brand),
+          if (to != null) _pin(to!.point, AppColors.dark),
         ]),
       ],
     );
   }
 
-  Marker _marker(LatLng p, Color c) => Marker(
+  Marker _pin(LatLng p, Color c) => Marker(
         point: p,
         width: 26,
         height: 26,
@@ -147,6 +176,26 @@ class _PlacePickerState extends State<_PlacePicker> {
   }
 }
 
+/// Wajah chunne wali sheet (ride cancel, driver reject, waghera).
+Future<String?> pickReason(BuildContext context, String title, List<String> reasons) {
+  return showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        for (final r in reasons)
+          ListTile(title: Text(r), onTap: () => Navigator.pop(ctx, r)),
+        ListTile(
+          title: const Text('Go back', style: TextStyle(color: AppColors.muted)),
+          onTap: () => Navigator.pop(ctx),
+        ),
+      ]),
+    ),
+  );
+}
+
 class Avatar extends StatelessWidget {
   final String name;
   final double size;
@@ -161,15 +210,66 @@ class Avatar extends StatelessWidget {
       );
 }
 
-/// Side menu: profile, passenger/driver mode switch, history, logout.
+class StarPicker extends StatelessWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+  const StarPicker({super.key, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 1; i <= 5; i++)
+            IconButton(
+              iconSize: 36,
+              onPressed: () => onChanged(i),
+              icon: Icon(i <= value ? Icons.star_rounded : Icons.star_outline_rounded, color: Colors.amber),
+            ),
+        ],
+      );
+}
+
+class StatusChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  const StatusChip(this.label, this.color, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+      );
+}
+
+Color rideStatusColor(RideStatus s) => switch (s) {
+      RideStatus.completed => Colors.green.shade700,
+      RideStatus.cancelled => AppColors.danger,
+      RideStatus.searching => Colors.orange.shade800,
+      _ => Colors.blue.shade700,
+    };
+
+void showSnack(BuildContext context, String msg) =>
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+/// Side menu: profile, history, support, mode switch, logout.
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
-    final user = store.user!;
+    final user = store.currentUser!;
     final isDriver = store.mode == AppMode.driver;
+    final rating = isDriver ? user.driverRating : user.passengerRating;
+    void go(Widget page) {
+      Navigator.pop(context);
+      Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    }
+
     return Drawer(
       child: SafeArea(
         child: Column(
@@ -178,20 +278,29 @@ class AppDrawer extends StatelessWidget {
               contentPadding: const EdgeInsets.all(16),
               leading: Avatar(user.name, size: 52),
               title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-              subtitle: Text(user.phone),
+              subtitle: Text('★ ${rating.toStringAsFixed(2)}  ·  ${user.phone}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => go(const ProfileScreen()),
             ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.history),
-              title: const Text('Ride history'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
-              },
+              title: const Text('My rides'),
+              onTap: () => go(const HistoryScreen()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.support_agent),
+              title: const Text('Support'),
+              onTap: () => go(const SupportHome()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.shield_outlined),
+              title: const Text('Safety'),
+              onTap: () => go(const SafetyScreen()),
             ),
             ListTile(
               leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
+              title: const Text('Log out'),
               onTap: () {
                 Navigator.pop(context);
                 store.logout();
@@ -226,29 +335,85 @@ class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
+    final me = store.currentUser!;
+    final list = store.historyFor(me.id);
     return Scaffold(
-      appBar: AppBar(title: const Text('Ride history')),
-      body: store.history.isEmpty
+      appBar: AppBar(title: const Text('My rides')),
+      body: list.isEmpty
           ? const Center(child: Text('No rides yet', style: TextStyle(color: AppColors.muted)))
           : ListView.separated(
               padding: const EdgeInsets.all(16),
-              itemCount: store.history.length,
+              itemCount: list.length,
               separatorBuilder: (_, _) => const Divider(height: 24),
               itemBuilder: (_, i) {
-                final r = store.history[i];
-                final done = r.status == RideStatus.completed;
+                final r = list[i];
+                final asDriver = r.driverId == me.id;
                 return Row(children: [
-                  Expanded(child: RouteLines(from: r.from, to: r.to)),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      RouteLines(from: r.from, to: r.to),
+                      const SizedBox(height: 6),
+                      Text('${r.vehicleType.label} · ${timeAgo(r.createdAt)} · ${asDriver ? 'as driver' : 'as passenger'}',
+                          style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                    ]),
+                  ),
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text(pkr(r.finalFare), style: const TextStyle(fontWeight: FontWeight.w800)),
-                    Text(r.isMine ? 'Passenger' : 'Driver',
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12)),
-                    Text(done ? 'Completed' : 'Cancelled',
-                        style: TextStyle(color: done ? Colors.green : AppColors.danger, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    StatusChip(r.status.label, rideStatusColor(r.status)),
                   ]),
                 ]);
               },
             ),
     );
   }
+}
+
+class SafetyScreen extends StatelessWidget {
+  const SafetyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Safety')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const [
+          _SafetyTip(Icons.verified_user_outlined, 'Verified drivers',
+              'Every driver is checked by our team: CNIC, driving license and vehicle documents.'),
+          _SafetyTip(Icons.directions_car_outlined, 'Check the car',
+              'Before you get in, match the car model, color and number plate shown in the app.'),
+          _SafetyTip(Icons.share_location_outlined, 'Share your trip',
+              'Send your trip details to family or friends during the ride.'),
+          _SafetyTip(Icons.sos_outlined, 'SOS button',
+              'In an emergency, press SOS during the ride to call 15 (Police) and alert support.'),
+          _SafetyTip(Icons.star_outline, 'Rate every ride',
+              'Ratings help us remove drivers and passengers who break the rules.'),
+        ],
+      ),
+    );
+  }
+}
+
+class _SafetyTip extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+  const _SafetyTip(this.icon, this.title, this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          CircleAvatar(backgroundColor: AppColors.brand, child: Icon(icon, color: AppColors.dark)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              const SizedBox(height: 4),
+              Text(text, style: const TextStyle(color: AppColors.muted)),
+            ]),
+          ),
+        ]),
+      );
 }

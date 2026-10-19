@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../main.dart';
 import '../../models.dart';
+import '../../store.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
 import 'driver_registration.dart';
@@ -13,10 +14,15 @@ class DriverHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
-    final user = store.user!;
-    if (!user.isDriverRegistered) return const DriverRegistration();
+    final user = store.currentUser!;
+    final profile = user.driver;
+    if (profile == null) {
+      return const DriverRegistration();
+    }
+    if (profile.status != DriverStatus.approved) return _DriverStatusScreen(profile: profile);
     if (store.driverRide != null) return DriverRideView(ride: store.driverRide!);
 
+    final net = store.todayGross - store.todayCommission;
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
@@ -40,16 +46,25 @@ class DriverHome extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: AppColors.dark, borderRadius: BorderRadius.circular(16)),
           child: Row(children: [
-            _stat('Today\'s earnings', pkr(store.todayEarnings)),
+            _stat('Today (net)', pkr(net)),
+            _stat('Commission', pkr(store.todayCommission)),
             _stat('Rides', '${store.todayTrips}'),
-            _stat('Car', user.vehicle!.plate),
+            _stat('Rating', '★ ${user.driverRating.toStringAsFixed(2)}'),
           ]),
         ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(children: [
+            Text('${profile.vehicle.type.label} requests',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const Spacer(),
+            Text(profile.vehicle.plate, style: const TextStyle(color: AppColors.muted)),
+          ]),
+        ),
+        const SizedBox(height: 8),
         Expanded(
           child: !store.driverOnline
-              ? const _Empty(
-                  icon: Icons.power_settings_new,
-                  text: 'Go online to see ride requests')
+              ? const _Empty(icon: Icons.power_settings_new, text: 'Go online to see ride requests')
               : store.openRequests.isEmpty
                   ? const _Empty(icon: Icons.hourglass_empty, text: 'Waiting for requests...')
                   : ListView.builder(
@@ -64,12 +79,71 @@ class DriverHome extends StatelessWidget {
 
   Widget _stat(String label, String value) => Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+          Text(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
           const SizedBox(height: 4),
           Text(value,
-              style: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.w800, fontSize: 16)),
+              style: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.w800, fontSize: 15)),
         ]),
       );
+}
+
+class _DriverStatusScreen extends StatelessWidget {
+  final DriverProfile profile;
+  const _DriverStatusScreen({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = StoreScope.of(context);
+    final (icon, color, title, text) = switch (profile.status) {
+      DriverStatus.pending => (
+          Icons.hourglass_top,
+          Colors.orange.shade800,
+          'Application under review',
+          'Our team is checking your documents. This usually takes up to 24 hours. '
+              'You will be able to go online once you are approved.'
+        ),
+      DriverStatus.rejected => (
+          Icons.cancel_outlined,
+          AppColors.danger,
+          'Application not approved',
+          'Reason: ${profile.rejectionReason ?? 'Not specified'}. You can fix this and apply again.'
+        ),
+      _ => (
+          Icons.block,
+          AppColors.danger,
+          'Driver account blocked',
+          'Your driver account has been blocked. Please contact support for details.'
+        ),
+    };
+    return Scaffold(
+      drawer: const AppDrawer(),
+      appBar: AppBar(title: const Text('Driver mode')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Icon(icon, size: 72, color: color),
+          const SizedBox(height: 16),
+          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(text, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 24),
+          if (profile.status == DriverStatus.rejected)
+            FilledButton(
+              onPressed: store.reapplyDriver,
+              child: const Text('Apply again'),
+            ),
+          if (profile.status == DriverStatus.pending)
+            const Text('Demo: approve this driver from the Control office login.',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.muted)),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () => store.switchMode(AppMode.passenger),
+            child: const Text('Back to passenger mode'),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 class _Empty extends StatelessWidget {
@@ -95,6 +169,7 @@ class _RequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
     final offered = store.hasOffered(req);
+    final p = store.userById(req.passengerId);
     return Card(
       elevation: 0,
       color: Colors.white,
@@ -110,17 +185,18 @@ class _RequestCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Avatar(req.passengerName, size: 36),
+              Avatar(p.name, size: 36),
               const SizedBox(width: 10),
-              Text('${req.passengerName}  ★ ${req.passengerRating.toStringAsFixed(1)}',
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-              const Spacer(),
+              Expanded(
+                child: Text('${p.name}  ★ ${p.passengerRating.toStringAsFixed(1)}',
+                    overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+              ),
               Text(pkr(req.fare), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             ]),
             const SizedBox(height: 10),
             RouteLines(from: req.from, to: req.to),
             const SizedBox(height: 6),
-            Text('${req.distanceKm.toStringAsFixed(1)} km',
+            Text('${req.distanceKm.toStringAsFixed(1)} km · ${timeAgo(req.createdAt)}',
                 style: const TextStyle(color: AppColors.muted, fontSize: 13)),
             if (req.comment.isNotEmpty)
               Text('"${req.comment}"', style: const TextStyle(fontStyle: FontStyle.italic)),
@@ -141,12 +217,12 @@ class _RequestCard extends StatelessWidget {
 
 /// inDrive jaisa: passenger ka kiraya accept karein ya apna kiraya offer karein.
 void _openOfferSheet(BuildContext context, RideRequest req) {
+  final AppStore store = StoreScope.of(context);
   showModalBottomSheet(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (ctx) {
-      final store = StoreScope.of(context);
       void send(int fare) {
         store.sendDriverOffer(req, fare);
         Navigator.pop(ctx);
@@ -158,10 +234,7 @@ void _openOfferSheet(BuildContext context, RideRequest req) {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             RouteLines(from: req.from, to: req.to),
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => send(req.fare),
-              child: Text('Accept for ${pkr(req.fare)}'),
-            ),
+            FilledButton(onPressed: () => send(req.fare), child: Text('Accept for ${pkr(req.fare)}')),
             const SizedBox(height: 16),
             const Text('Or offer your fare:', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),

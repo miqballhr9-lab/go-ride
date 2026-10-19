@@ -18,6 +18,7 @@ class PassengerHome extends StatefulWidget {
 class _PassengerHomeState extends State<PassengerHome> {
   Place? from = AppStore.places.first;
   Place? to;
+  VehicleType type = VehicleType.mini;
   final fareCtrl = TextEditingController();
   final commentCtrl = TextEditingController();
   String? error;
@@ -29,41 +30,42 @@ class _PassengerHomeState extends State<PassengerHome> {
     super.dispose();
   }
 
-  int? get _suggested =>
-      (from != null && to != null) ? AppStore.suggestedFare(from!, to!) : null;
+  int? _suggested(AppStore store, [VehicleType? t]) =>
+      (from != null && to != null) ? store.suggestedFare(t ?? type, from!, to!) : null;
+
+  void _refreshFare() {
+    final s = _suggested(StoreScope.of(context));
+    if (s != null) fareCtrl.text = '$s';
+  }
 
   void _pickTo() async {
     final p = await pickPlace(context, 'Where to?', exclude: from);
     if (p == null) return;
-    setState(() {
-      to = p;
-      fareCtrl.text = '$_suggested';
-    });
+    setState(() => to = p);
+    _refreshFare();
   }
 
   void _pickFrom() async {
     final p = await pickPlace(context, 'Pickup location', exclude: to);
     if (p == null) return;
-    setState(() {
-      from = p;
-      if (_suggested != null) fareCtrl.text = '$_suggested';
-    });
+    setState(() => from = p);
+    _refreshFare();
   }
 
   void _findDriver() {
+    final store = StoreScope.of(context);
     final fare = int.tryParse(fareCtrl.text.trim());
     setState(() => error = null);
     if (from == null || to == null) {
       setState(() => error = 'Choose both pickup and destination');
       return;
     }
-    // inDrive ki tarah kam se kam kiraye ki had.
-    final minFare = (_suggested! * 0.6).round();
+    final minFare = store.lowestAllowedFare(type, from!, to!);
     if (fare == null || fare < minFare) {
-      setState(() => error = 'Minimum fare is ${pkr(minFare)}');
+      setState(() => error = 'Minimum fare for this trip is ${pkr(minFare)}');
       return;
     }
-    StoreScope.of(context).createRequest(from!, to!, fare, commentCtrl.text.trim());
+    store.createRequest(type, from!, to!, fare, commentCtrl.text.trim());
   }
 
   @override
@@ -80,7 +82,13 @@ class _PassengerHomeState extends State<PassengerHome> {
       drawer: const AppDrawer(),
       body: Stack(
         children: [
-          Positioned.fill(child: RideMap(from: from, to: to)),
+          Positioned.fill(
+            child: RideMap(
+              from: from,
+              to: to,
+              cars: [for (final d in store.onlineDrivers) d.driver!.location!],
+            ),
+          ),
           Positioned(
             top: 0,
             left: 0,
@@ -98,33 +106,40 @@ class _PassengerHomeState extends State<PassengerHome> {
               ),
             ),
           ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: _requestCard(),
-          ),
+          Align(alignment: Alignment.bottomCenter, child: _requestCard(store)),
         ],
       ),
     );
   }
 
-  Widget _requestCard() {
+  Widget _requestCard(AppStore store) {
+    final suggested = _suggested(store);
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [BoxShadow(blurRadius: 16, color: Colors.black12)],
       ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: const EdgeInsets.all(16),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _tile(Icons.circle, AppColors.brand, from?.name ?? 'Pickup', _pickFrom),
+            SizedBox(
+              height: 74,
+              child: Row(children: [
+                for (final t in VehicleType.values) ...[
+                  Expanded(child: _typeTile(store, t)),
+                  if (t != VehicleType.values.last) const SizedBox(width: 8),
+                ],
+              ]),
+            ),
+            const SizedBox(height: 10),
+            _tile(AppColors.brand, from?.name ?? 'Pickup', _pickFrom),
             const SizedBox(height: 8),
-            _tile(Icons.circle, AppColors.dark, to?.name ?? 'Where to?', _pickTo,
-                placeholder: to == null),
+            _tile(AppColors.dark, to?.name ?? 'Where to?', _pickTo, placeholder: to == null),
             const SizedBox(height: 8),
             TextField(
               controller: fareCtrl,
@@ -136,7 +151,7 @@ class _PassengerHomeState extends State<PassengerHome> {
                 ),
                 prefixIconConstraints: const BoxConstraints(minWidth: 0),
                 hintText: 'Offer your fare',
-                helperText: _suggested == null ? null : 'Recommended fare: ${pkr(_suggested!)}',
+                helperText: suggested == null ? null : 'Recommended fare: ${pkr(suggested)} · Cash',
               ),
             ),
             const SizedBox(height: 8),
@@ -144,7 +159,7 @@ class _PassengerHomeState extends State<PassengerHome> {
               controller: commentCtrl,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.chat_bubble_outline),
-                hintText: 'Comment (optional)',
+                hintText: 'Comment for driver (optional)',
               ),
             ),
             if (error != null) ...[
@@ -159,7 +174,37 @@ class _PassengerHomeState extends State<PassengerHome> {
     );
   }
 
-  Widget _tile(IconData icon, Color color, String text, VoidCallback onTap, {bool placeholder = false}) {
+  Widget _typeTile(AppStore store, VehicleType t) {
+    final selected = t == type;
+    final price = _suggested(store, t);
+    return Material(
+      color: selected ? AppColors.brand.withValues(alpha: 0.25) : AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: selected ? AppColors.dark : Colors.transparent, width: 1.5),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          setState(() => type = t);
+          _refreshFare();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(t == VehicleType.moto ? Icons.two_wheeler : Icons.directions_car, size: 22),
+            Text(t.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            Text(price == null ? t.description : pkr(price),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _tile(Color color, String text, VoidCallback onTap, {bool placeholder = false}) {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(14),
@@ -169,7 +214,7 @@ class _PassengerHomeState extends State<PassengerHome> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(children: [
-            Icon(icon, size: 12, color: color),
+            Icon(Icons.circle, size: 12, color: color),
             const SizedBox(width: 14),
             Expanded(
               child: Text(text,

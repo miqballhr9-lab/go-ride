@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'admin/admin_shell.dart';
 import 'models.dart';
 import 'screens/driver/driver_home.dart';
 import 'screens/login_screen.dart';
@@ -44,7 +45,8 @@ class RootGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
-    if (store.user == null) return const LoginScreen();
+    if (store.adminLoggedIn) return const AdminShell();
+    if (store.currentUser == null) return const LoginScreen();
     return store.mode == AppMode.passenger
         ? const PassengerHome()
         : const DriverHome();

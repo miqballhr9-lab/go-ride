@@ -4,24 +4,40 @@ An inDrive-style ride-hailing app: the passenger names their own fare, and drive
 
 ## What's built so far (MVP with demo data)
 
+**Accounts**
+- Phone + OTP login (demo code: `1234`), new users create an account (name, email, city)
+- Profile editing, blocked accounts cannot log in
+- Separate passenger and driver ratings
+
 **Passenger mode**
-- Phone + OTP login (demo code: `1234`)
-- Pick pickup and destination on the map, with a recommended fare
-- Offer your own fare, add a comment
+- Choose Moto / Ride Mini / Ride AC, pickup and destination, recommended fare
+- Offer your own fare (down to 70% of recommended), comment for the driver
 - Driver offers: Accept / Decline, raise fare by Rs 20
-- Ride status: driver on the way, arrived, in progress, completed, rating
+- Ride status, chat with driver, share trip, SOS, cancel with a reason, rate the driver
+- Ride history, support tickets, FAQ, safety tips
 
 **Driver mode** (switch from the side menu)
-- Registration: CNIC, car model, color, number plate
-- Online / Offline, nearby ride requests
+- Registration: CNIC, license, vehicle type/model/color/year/plate, 6 documents
+- Application reviewed by the control office (pending / approved / rejected / blocked)
+- Online / Offline, nearby requests for your vehicle type
 - Accept the passenger's fare or counter-offer (+20/+50/+100)
-- Ride flow: arrived, start, complete; today's earnings
+- Ride flow with chat, cancel reasons, passenger rating
+- Earnings card: net income, commission, rides, rating
+
+**Control office** (login screen → "Control office login", demo `admin` / `admin123`)
+- Dashboard: rides, fares, commission, online drivers, pending drivers, open tickets
+- Live map of online drivers
+- Drivers: review documents, approve / reject with reason, block / unblock
+- Users: search, view rides, block / unblock
+- Rides: filter by status and type, full ride details, cancel active rides
+- Support: reply to tickets with templates, close tickets
+- Fares & settings: base fare, per km, minimum fare per vehicle type, commission %
 
 ![App flow](docs/app-flow.png)
+![Control office](docs/control-office.png)
 
 ## Still to do
 - [ ] Firebase backend (real login, real drivers/passengers, live location)
-- [ ] Control office (admin web panel)
 - [ ] GPS location, place search (geocoding)
 - [ ] Document upload, notifications, in-app chat/call
 

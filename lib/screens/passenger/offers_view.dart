@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../main.dart';
 import '../../models.dart';
+import '../../store.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
 
@@ -18,7 +19,10 @@ class OffersView extends StatelessWidget {
         title: const Text('Driver offers'),
         actions: [
           TextButton(
-            onPressed: store.cancelPassengerRide,
+            onPressed: () async {
+              final reason = await pickReason(context, 'Why are you cancelling?', AppStore.passengerCancelReasons);
+              if (reason != null) store.cancelPassengerRide(reason);
+            },
             child: const Text('Cancel', style: TextStyle(color: AppColors.danger)),
           ),
         ],
@@ -33,9 +37,10 @@ class OffersView extends StatelessWidget {
               RouteLines(from: ride.from, to: ride.to),
               const SizedBox(height: 12),
               Row(children: [
-                Text('Your fare: ${pkr(ride.fare)}',
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                const Spacer(),
+                Expanded(
+                  child: Text('${ride.vehicleType.label} · Your fare: ${pkr(ride.fare)}',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                ),
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
                   onPressed: () => store.raiseFare(ride.fare + 20),
@@ -52,6 +57,9 @@ class OffersView extends StatelessWidget {
                 SizedBox(height: 16),
                 Text('Your request has been sent to nearby drivers...',
                     style: TextStyle(color: AppColors.muted)),
+                SizedBox(height: 4),
+                Text('Raise your fare to get offers faster',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
               ]),
             )
           else
@@ -75,7 +83,8 @@ class _OfferCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
-    final d = offer.driver;
+    final d = store.userById(offer.driverId);
+    final v = d.driver!.vehicle;
     return Card(
       elevation: 0,
       color: Colors.white,
@@ -93,9 +102,9 @@ class _OfferCard extends StatelessWidget {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(d.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                Text('★ ${d.rating}  ·  ${d.trips} rides',
+                Text('★ ${d.driverRating.toStringAsFixed(2)}  ·  ${d.driverRatingCount} ratings',
                     style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-                Text(d.vehicle.toString(), style: const TextStyle(fontSize: 13)),
+                Text(v.toString(), style: const TextStyle(fontSize: 13)),
               ]),
             ),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
