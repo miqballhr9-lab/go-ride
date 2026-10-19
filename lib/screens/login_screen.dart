@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../admin/admin_login.dart';
 import '../main.dart';
+import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
 
@@ -132,16 +132,28 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _next,
                       child: Text(step == _Step.signup ? 'Create account' : 'Next'),
                     ),
-                    if (step == _Step.phone)
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: () => Navigator.push(
-                              context, MaterialPageRoute(builder: (_) => const AdminLoginScreen())),
-                          icon: const Icon(Icons.admin_panel_settings_outlined, size: 18),
-                          label: const Text('Control office login'),
-                          style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+                    if (step == _Step.phone) ...[
+                      const SizedBox(height: 16),
+                      const Text('Open without login (demo)', style: TextStyle(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        Expanded(
+                          child: _demoButton(Icons.person_outline, 'Passenger',
+                              () => StoreScope.of(context).demoLogin(AppMode.passenger)),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _demoButton(Icons.directions_car_outlined, 'Driver',
+                              () => StoreScope.of(context).demoLogin(AppMode.driver)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _demoButton(Icons.admin_panel_settings_outlined, 'Control office',
+                              () => StoreScope.of(context)
+                                  .adminLogin(AppStore.adminUsername, AppStore.adminPassword)),
+                        ),
+                      ]),
+                    ],
                   ],
                 ),
               ),
@@ -151,6 +163,19 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  Widget _demoButton(IconData icon, String label, VoidCallback onTap) => OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 64),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+        ),
+        onPressed: onTap,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 20),
+          const SizedBox(height: 2),
+          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+        ]),
+      );
 
   String get _title => switch (step) {
         _Step.phone => 'Enter your phone number',

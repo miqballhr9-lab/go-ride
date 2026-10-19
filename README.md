@@ -4,6 +4,8 @@ An inDrive-style ride-hailing app: the passenger names their own fare, and drive
 
 ## What's built so far (MVP with demo data)
 
+For review, the login screen has one-tap buttons that open the **Passenger**, **Driver** (already approved) and **Control office** panels without logging in.
+
 **Accounts**
 - Phone + OTP login (demo code: `1234`), new users create an account (name, email, city)
 - Profile editing, blocked accounts cannot log in
@@ -24,7 +26,7 @@ An inDrive-style ride-hailing app: the passenger names their own fare, and drive
 - Ride flow with chat, cancel reasons, passenger rating
 - Earnings card: net income, commission, rides, rating
 
-**Control office** (login screen → "Control office login", demo `admin` / `admin123`)
+**Control office** (demo: tap "Control office" on the login screen)
 - Dashboard: rides, fares, commission, online drivers, pending drivers, open tickets
 - Live map of online drivers
 - Drivers: review documents, approve / reject with reason, block / unblock

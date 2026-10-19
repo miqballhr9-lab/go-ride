@@ -83,4 +83,15 @@ void main() {
     final f = store.suggestedFare(VehicleType.mini, AppStore.places[0], AppStore.places[11]);
     expect(f, greaterThanOrEqualTo(store.settings.minFare[VehicleType.mini]!));
   });
+
+  test('Demo accounts log in to passenger and approved driver', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.passenger);
+    expect(store.currentUser!.phone, AppStore.demoPassengerPhone);
+    store.logout();
+    store.demoLogin(AppMode.driver);
+    expect(store.mode, AppMode.driver);
+    expect(store.currentUser!.isApprovedDriver, isTrue);
+    store.dispose();
+  });
 }

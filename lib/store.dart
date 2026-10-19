@@ -52,6 +52,14 @@ class AppStore extends ChangeNotifier {
   static const demoOtp = '1234';
   static const adminUsername = 'admin';
   static const adminPassword = 'admin123';
+  static const demoPassengerPhone = '+923000000001';
+  static const demoDriverPhone = '+923000000002';
+
+  /// Demo accounts mein seedha login (OTP ke baghair).
+  void demoLogin(AppMode as) {
+    login(as == AppMode.driver ? demoDriverPhone : demoPassengerPhone);
+    if (as == AppMode.driver) switchMode(AppMode.driver);
+  }
 
   AppUser? userByPhone(String phone) {
     for (final u in users.values) {
@@ -731,6 +739,32 @@ class AppStore extends ChangeNotifier {
       rides.add(r);
     }
     rides.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    // Pakke demo accounts: test karne ke liye
+    final demoPassenger = AppUser(
+      id: _newId('U'),
+      phone: demoPassengerPhone,
+      name: 'Demo Passenger',
+      email: 'passenger@goride.demo',
+      createdAt: now.subtract(const Duration(days: 30)),
+    );
+    users[demoPassenger.id] = demoPassenger;
+    final demoDriver = AppUser(
+      id: _newId('U'),
+      phone: demoDriverPhone,
+      name: 'Demo Driver',
+      email: 'driver@goride.demo',
+      createdAt: now.subtract(const Duration(days: 60)),
+    )..driver = DriverProfile(
+        cnic: '35202-1234567-1',
+        licenseNo: 'LHR-123456',
+        vehicle: const Vehicle(
+            type: VehicleType.mini, model: 'Suzuki Alto', color: 'White', plate: 'LEA-1234', year: 2020),
+        documents: driverDocuments.toSet(),
+        status: DriverStatus.approved,
+        submittedAt: now.subtract(const Duration(days: 60)),
+      );
+    users[demoDriver.id] = demoDriver;
 
     // Support tickets
     final samples = [

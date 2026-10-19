@@ -12,8 +12,8 @@ class AdminLoginScreen extends StatefulWidget {
 }
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
-  final user = TextEditingController();
-  final pass = TextEditingController();
+  final user = TextEditingController(text: AppStore.adminUsername);
+  final pass = TextEditingController(text: AppStore.adminPassword);
   String? error;
 
   @override
