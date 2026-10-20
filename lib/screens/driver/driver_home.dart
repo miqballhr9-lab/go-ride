@@ -5,6 +5,7 @@ import '../../models.dart';
 import '../../store.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
+import '../wallet_screen.dart';
 import 'driver_registration.dart';
 import 'driver_ride_view.dart';
 
@@ -35,23 +36,51 @@ class DriverHome extends StatelessWidget {
           Switch(
             value: store.driverOnline,
             activeTrackColor: AppColors.brand,
-            onChanged: store.setDriverOnline,
+            onChanged: (v) {
+              if (v && !store.canGoOnline) {
+                showSnack(context, 'Your wallet balance is below zero. Top up to go online.');
+                return;
+              }
+              store.setDriverOnline(v);
+            },
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: Column(children: [
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: AppColors.dark, borderRadius: BorderRadius.circular(16)),
-          child: Row(children: [
-            _stat('Today (net)', pkr(net)),
-            _stat('Commission', pkr(store.todayCommission)),
-            _stat('Rides', '${store.todayTrips}'),
-            _stat('Rating', '★ ${user.driverRating.toStringAsFixed(2)}'),
-          ]),
+        GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen())),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.dark, borderRadius: BorderRadius.circular(16)),
+            child: Row(children: [
+              _stat('Today (net)', pkr(net)),
+              _stat('Commission', pkr(store.todayCommission)),
+              _stat('Rides', '${store.todayTrips}'),
+              _stat('Wallet', pkr(user.walletBalance), warn: user.walletBalance < 0),
+            ]),
+          ),
         ),
+        if (!store.canGoOnline)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+            decoration: BoxDecoration(
+              color: AppColors.danger.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Expanded(
+                child: Text('Balance below zero. Top up to receive requests.',
+                    style: TextStyle(color: AppColors.danger)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopUpScreen())),
+                child: const Text('Top up'),
+              ),
+            ]),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(children: [
@@ -77,12 +106,15 @@ class DriverHome extends StatelessWidget {
     );
   }
 
-  Widget _stat(String label, String value) => Expanded(
+  Widget _stat(String label, String value, {bool warn = false}) => Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
           const SizedBox(height: 4),
           Text(value,
-              style: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.w800, fontSize: 15)),
+              style: TextStyle(
+                  color: warn ? const Color(0xFFFF8A8A) : AppColors.brand,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15)),
         ]),
       );
 }
@@ -193,8 +225,14 @@ class _RequestCard extends StatelessWidget {
               ),
               Text(pkr(req.fare), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, children: [
+              StatusChip(req.service.label, AppColors.dark),
+              if (req.payment == PaymentMethod.wallet) StatusChip('Wallet', Colors.green.shade700),
+            ]),
+            const SizedBox(height: 8),
             RouteLines(from: req.from, to: req.to),
+            ServiceInfo(ride: req, showReceiverPhone: false),
             const SizedBox(height: 6),
             Text('${req.distanceKm.toStringAsFixed(1)} km · ${timeAgo(req.createdAt)}',
                 style: const TextStyle(color: AppColors.muted, fontSize: 13)),
@@ -233,20 +271,21 @@ void _openOfferSheet(BuildContext context, RideRequest req) {
         child: SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             RouteLines(from: req.from, to: req.to),
+            ServiceInfo(ride: req, showReceiverPhone: false),
             const SizedBox(height: 16),
             FilledButton(onPressed: () => send(req.fare), child: Text('Accept for ${pkr(req.fare)}')),
             const SizedBox(height: 16),
             const Text('Or offer your fare:', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Row(children: [
-              for (final bump in [20, 50, 100]) ...[
+              for (final (i, bump) in (req.service == ServiceType.freight ? [100, 250, 500] : [20, 50, 100]).indexed) ...[
+                if (i > 0) const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => send(req.fare + bump),
                     child: Text(pkr(req.fare + bump)),
                   ),
                 ),
-                if (bump != 100) const SizedBox(width: 8),
               ],
             ]),
             const SizedBox(height: 8),

@@ -5,7 +5,9 @@ import '../../models.dart';
 import '../../store.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
+import '../call_screen.dart';
 import '../chat_screen.dart';
+import '../../widgets/review_input.dart';
 
 /// Offer accept hone ke baad passenger ka ride screen.
 class PassengerRideView extends StatefulWidget {
@@ -17,8 +19,6 @@ class PassengerRideView extends StatefulWidget {
 }
 
 class _PassengerRideViewState extends State<PassengerRideView> {
-  int stars = 5;
-
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
@@ -49,8 +49,16 @@ class _PassengerRideViewState extends State<PassengerRideView> {
     final (title, subtitle) = switch (ride.status) {
       RideStatus.driverComing => ('Driver is on the way', 'Arriving in ${offer.etaMinutes} min'),
       RideStatus.driverArrived => ('Your driver has arrived', 'Look for a ${v.color} ${v.model}'),
-      RideStatus.inProgress => ('On the way', 'Destination: ${ride.to.name}'),
-      RideStatus.completed => ('You have arrived', 'Please pay ${pkr(offer.fare)} cash to the driver'),
+      RideStatus.inProgress => (
+          ride.service == ServiceType.ride ? 'On the way' : 'Delivery in progress',
+          'Destination: ${ride.to.name}'
+        ),
+      RideStatus.completed => (
+          ride.service == ServiceType.ride ? 'You have arrived' : 'Delivered',
+          ride.payment == PaymentMethod.wallet
+              ? '${pkr(offer.fare)} paid from your wallet'
+              : 'Please pay ${pkr(offer.fare)} cash to the driver'
+        ),
       RideStatus.cancelled => ('Ride cancelled', ride.cancelReason ?? ''),
       RideStatus.searching => ('', ''),
     };
@@ -92,7 +100,10 @@ class _PassengerRideViewState extends State<PassengerRideView> {
                   const SizedBox(height: 12),
                   RouteLines(from: ride.from, to: ride.to),
                   const SizedBox(height: 8),
-                  Text('Fare: ${pkr(offer.fare)} (cash)', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ServiceInfo(ride: ride),
+                  const SizedBox(height: 8),
+                  Text('Fare: ${pkr(offer.fare)} (${ride.payment.label.toLowerCase()})',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 16),
                   ..._actions(store, ride),
                 ],
@@ -108,9 +119,11 @@ class _PassengerRideViewState extends State<PassengerRideView> {
     switch (ride.status) {
       case RideStatus.completed:
         return [
-          const Text('Rate your driver', textAlign: TextAlign.center),
-          StarPicker(value: stars, onChanged: (v) => setState(() => stars = v)),
-          FilledButton(onPressed: () => store.closePassengerRide(stars: stars), child: const Text('Done')),
+          ReviewInput(
+            title: 'Rate your driver',
+            tags: driverReviewTags,
+            onSubmit: (stars, review) => store.closePassengerRide(stars: stars, review: review),
+          ),
         ];
       case RideStatus.cancelled:
         return [
@@ -119,24 +132,16 @@ class _PassengerRideViewState extends State<PassengerRideView> {
       default:
         final started = ride.status == RideStatus.inProgress;
         return [
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => RideChatScreen(ride: ride))),
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: Text(ride.chat.isEmpty ? 'Chat' : 'Chat (${ride.chat.length})'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => showSnack(context, 'Trip details copied to share (demo)'),
-                icon: const Icon(Icons.share_location),
-                label: const Text('Share trip'),
-              ),
-            ),
-          ]),
+          ContactButtons(
+            ride: ride,
+            openChat: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RideChatScreen(ride: ride))),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => showSnack(context, 'Trip details copied to share (demo)'),
+            icon: const Icon(Icons.share_location),
+            label: const Text('Share trip'),
+          ),
           const SizedBox(height: 10),
           if (!started)
             OutlinedButton(

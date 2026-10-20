@@ -91,24 +91,36 @@ class _DriverRegistrationState extends State<DriverRegistration> {
             ),
             const SizedBox(height: 20),
             const _Section('Vehicle'),
-            SegmentedButton<VehicleType>(
-              segments: [
-                for (final t in VehicleType.values)
-                  ButtonSegment(
-                    value: t,
-                    label: Text(t.label),
-                    icon: Icon(t == VehicleType.moto ? Icons.two_wheeler : Icons.directions_car),
-                  ),
-              ],
-              selected: {type},
-              onSelectionChanged: (s) => setState(() => type = s.first),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final t in VehicleType.values)
+                ChoiceChip(
+                  avatar: Icon(vehicleIcon(t), size: 18),
+                  label: Text(t.label),
+                  selected: type == t,
+                  onSelected: (_) => setState(() => type = t),
+                ),
+            ]),
+            const SizedBox(height: 4),
+            Text(
+              type.isFreight
+                  ? 'You will receive freight requests (${type.description}).'
+                  : type == VehicleType.ac
+                      ? 'You will receive ride requests.'
+                      : 'You will receive ride and courier requests.',
+              style: const TextStyle(fontSize: 12, color: AppColors.muted),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: model,
               decoration: InputDecoration(
                   labelText: 'Make and model',
-                  hintText: type == VehicleType.moto ? 'Honda CD 70' : 'Suzuki Alto'),
+                  hintText: switch (type) {
+                    VehicleType.moto => 'Honda CD 70',
+                    VehicleType.pickup => 'Suzuki Ravi',
+                    VehicleType.shehzore => 'Hyundai Shehzore',
+                    VehicleType.truck => 'Mazda T3500',
+                    _ => 'Suzuki Alto',
+                  }),
               validator: _required,
             ),
             const SizedBox(height: 12),

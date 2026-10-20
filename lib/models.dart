@@ -25,21 +25,153 @@ extension RideStatusLabel on RideStatus {
       this != RideStatus.completed && this != RideStatus.cancelled;
 }
 
-enum VehicleType { moto, mini, ac }
+enum VehicleType { moto, mini, ac, pickup, shehzore, truck }
 
 extension VehicleTypeInfo on VehicleType {
   String get label => switch (this) {
         VehicleType.moto => 'Moto',
         VehicleType.mini => 'Ride Mini',
         VehicleType.ac => 'Ride AC',
+        VehicleType.pickup => 'Pickup',
+        VehicleType.shehzore => 'Shehzore',
+        VehicleType.truck => 'Mazda truck',
       };
 
   String get description => switch (this) {
         VehicleType.moto => '1 passenger, fastest',
         VehicleType.mini => 'Small car, budget',
         VehicleType.ac => 'Comfortable car with AC',
+        VehicleType.pickup => 'Up to 800 kg',
+        VehicleType.shehzore => 'Up to 2 tons',
+        VehicleType.truck => 'Up to 6 tons',
+      };
+
+  bool get isFreight =>
+      this == VehicleType.pickup || this == VehicleType.shehzore || this == VehicleType.truck;
+
+  int get maxKg => switch (this) {
+        VehicleType.pickup => 800,
+        VehicleType.shehzore => 2000,
+        VehicleType.truck => 6000,
+        _ => 20,
       };
 }
+
+/// inDrive jaisi services: sawari, parcel (courier) aur saman (freight).
+enum ServiceType { ride, courier, freight }
+
+extension ServiceTypeInfo on ServiceType {
+  String get label => switch (this) {
+        ServiceType.ride => 'Ride',
+        ServiceType.courier => 'Courier',
+        ServiceType.freight => 'Freight',
+      };
+
+  List<VehicleType> get vehicles => switch (this) {
+        ServiceType.ride => [VehicleType.moto, VehicleType.mini, VehicleType.ac],
+        ServiceType.courier => [VehicleType.moto, VehicleType.mini],
+        ServiceType.freight => [VehicleType.pickup, VehicleType.shehzore, VehicleType.truck],
+      };
+}
+
+enum ParcelSize { small, medium, large }
+
+extension ParcelSizeInfo on ParcelSize {
+  String get label => switch (this) {
+        ParcelSize.small => 'Small',
+        ParcelSize.medium => 'Medium',
+        ParcelSize.large => 'Large',
+      };
+
+  String get description => switch (this) {
+        ParcelSize.small => 'Documents, phone, keys',
+        ParcelSize.medium => 'Shoe box, food order',
+        ParcelSize.large => 'Up to 20 kg',
+      };
+
+  int get surcharge => switch (this) {
+        ParcelSize.small => 0,
+        ParcelSize.medium => 50,
+        ParcelSize.large => 100,
+      };
+}
+
+class ParcelDetails {
+  final String receiverName;
+  final String receiverPhone;
+  final ParcelSize size;
+  final String description;
+  final bool fragile;
+  const ParcelDetails({
+    required this.receiverName,
+    required this.receiverPhone,
+    required this.size,
+    required this.description,
+    this.fragile = false,
+  });
+}
+
+class FreightDetails {
+  final String cargo;
+  final int weightKg;
+  final int helpers; // saman uthane wale mazdoor
+  const FreightDetails({required this.cargo, required this.weightKg, required this.helpers});
+}
+
+const helperFee = 500;
+
+enum PaymentMethod { cash, wallet }
+
+extension PaymentMethodLabel on PaymentMethod {
+  String get label => switch (this) {
+        PaymentMethod.cash => 'Cash',
+        PaymentMethod.wallet => 'Wallet',
+      };
+}
+
+enum TxType { topUp, commission, ridePayment, rideEarning, adjustment }
+
+extension TxTypeLabel on TxType {
+  String get label => switch (this) {
+        TxType.topUp => 'Top-up',
+        TxType.commission => 'Commission',
+        TxType.ridePayment => 'Ride payment',
+        TxType.rideEarning => 'Ride earning',
+        TxType.adjustment => 'Adjustment by support',
+      };
+}
+
+enum TxStatus { pending, success, failed }
+
+const topUpMethods = ['JazzCash', 'Easypaisa', 'Debit / credit card', 'Bank transfer'];
+
+class WalletTransaction {
+  final String id;
+  final String userId;
+  final TxType type;
+  final int amount; // + jama, - kata
+  final String? method;
+  final String? rideId;
+  final String note;
+  final DateTime time;
+  TxStatus status;
+
+  WalletTransaction({
+    required this.id,
+    required this.userId,
+    required this.type,
+    required this.amount,
+    this.method,
+    this.rideId,
+    this.note = '',
+    this.status = TxStatus.success,
+    DateTime? time,
+  }) : time = time ?? DateTime.now();
+}
+
+/// Rating ke saath comment ke liye tayyar tags.
+const driverReviewTags = ['Polite', 'Clean car', 'Safe driving', 'On time', 'Knows the route'];
+const passengerReviewTags = ['Polite', 'On time', 'Clear pickup point', 'Respectful'];
 
 /// Control office yeh settings badal sakta hai.
 class FareSettings {
@@ -56,9 +188,18 @@ class FareSettings {
   });
 
   factory FareSettings.defaults() => FareSettings(
-        baseFare: {VehicleType.moto: 60, VehicleType.mini: 120, VehicleType.ac: 170},
-        perKm: {VehicleType.moto: 22, VehicleType.mini: 40, VehicleType.ac: 52},
-        minFare: {VehicleType.moto: 100, VehicleType.mini: 200, VehicleType.ac: 280},
+        baseFare: {
+          VehicleType.moto: 60, VehicleType.mini: 120, VehicleType.ac: 170,
+          VehicleType.pickup: 600, VehicleType.shehzore: 1200, VehicleType.truck: 2500,
+        },
+        perKm: {
+          VehicleType.moto: 22, VehicleType.mini: 40, VehicleType.ac: 52,
+          VehicleType.pickup: 70, VehicleType.shehzore: 110, VehicleType.truck: 180,
+        },
+        minFare: {
+          VehicleType.moto: 100, VehicleType.mini: 200, VehicleType.ac: 280,
+          VehicleType.pickup: 1000, VehicleType.shehzore: 2000, VehicleType.truck: 4000,
+        },
         commissionPercent: 10,
       );
 }
@@ -145,6 +286,7 @@ class AppUser {
   int driverRatingCount = 0;
 
   DriverProfile? driver;
+  int walletBalance = 0;
 
   AppUser({
     required this.id,
@@ -181,13 +323,18 @@ class ChatMessage {
   final String senderId;
   final String text;
   final DateTime time;
-  ChatMessage(this.senderId, this.text) : time = DateTime.now();
+  final bool isCall; // call ka record
+  ChatMessage(this.senderId, this.text, {this.isCall = false}) : time = DateTime.now();
 }
 
 class RideRequest {
   final String id;
   final String passengerId;
+  final ServiceType service;
   final VehicleType vehicleType;
+  final PaymentMethod payment;
+  final ParcelDetails? parcel;
+  final FreightDetails? freight;
   final Place from;
   final Place to;
   int fare; // passenger ka bataya hua kiraya
@@ -202,14 +349,20 @@ class RideRequest {
   String? cancelledBy; // 'passenger', 'driver', 'admin'
   DateTime? completedAt;
   int? driverRatingGiven; // passenger ne driver ko di
+  String driverReview = '';
   int? passengerRatingGiven; // driver ne passenger ko di
+  String passengerReview = '';
   int commission = 0;
   final List<ChatMessage> chat = [];
 
   RideRequest({
     required this.id,
     required this.passengerId,
+    this.service = ServiceType.ride,
     required this.vehicleType,
+    this.payment = PaymentMethod.cash,
+    this.parcel,
+    this.freight,
     required this.from,
     required this.to,
     required this.fare,

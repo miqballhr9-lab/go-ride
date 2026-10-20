@@ -35,10 +35,11 @@ class OffersView extends StatelessWidget {
             decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               RouteLines(from: ride.from, to: ride.to),
+              ServiceInfo(ride: ride),
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(
-                  child: Text('${ride.vehicleType.label} · Your fare: ${pkr(ride.fare)}',
+                  child: Text('${ride.vehicleType.label} · ${pkr(ride.fare)} · ${ride.payment.label}',
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                 ),
                 OutlinedButton(

@@ -4,6 +4,7 @@ import '../main.dart';
 import '../models.dart';
 import '../screens/chat_screen.dart';
 import '../screens/support/support_home.dart';
+import '../screens/wallet_screen.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'admin_shell.dart';
@@ -21,6 +22,7 @@ class AdminRides extends StatefulWidget {
 
 class _AdminRidesState extends State<AdminRides> {
   _RideFilter filter = _RideFilter.all;
+  ServiceType? service;
   VehicleType? type;
 
   @override
@@ -33,7 +35,7 @@ class _AdminRidesState extends State<AdminRides> {
         _RideFilter.completed => r.status == RideStatus.completed,
         _RideFilter.cancelled => r.status == RideStatus.cancelled,
       };
-      return okStatus && (type == null || r.vehicleType == type);
+      return okStatus && (service == null || r.service == service) && (type == null || r.vehicleType == type);
     }).take(100).toList();
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -45,9 +47,29 @@ class _AdminRidesState extends State<AdminRides> {
               selected: filter == f,
               onSelected: (_) => setState(() => filter = f),
             ),
-          const SizedBox(width: 12),
-          ChoiceChip(label: const Text('All types'), selected: type == null, onSelected: (_) => setState(() => type = null)),
-          for (final t in VehicleType.values)
+        ]),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          ChoiceChip(
+              label: const Text('All services'),
+              selected: service == null,
+              onSelected: (_) => setState(() {
+                    service = null;
+                    type = null;
+                  })),
+          for (final sv in ServiceType.values)
+            ChoiceChip(
+                label: Text(sv.label),
+                selected: service == sv,
+                onSelected: (_) => setState(() {
+                      service = sv;
+                      if (type != null && !sv.vehicles.contains(type)) type = null;
+                    })),
+        ]),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          ChoiceChip(label: const Text('All vehicles'), selected: type == null, onSelected: (_) => setState(() => type = null)),
+          for (final t in (service?.vehicles ?? VehicleType.values))
             ChoiceChip(label: Text(t.label), selected: type == t, onSelected: (_) => setState(() => type = t)),
         ]),
         const SizedBox(height: 12),
@@ -77,7 +99,7 @@ class RideTable extends StatelessWidget {
           ListTile(
             title: Text('${r.from.name} → ${r.to.name}', overflow: TextOverflow.ellipsis),
             subtitle: Text(
-              '${r.id} · ${r.vehicleType.label} · ${store.userById(r.passengerId).name}'
+              '${r.id} · ${r.service.label} · ${r.vehicleType.label} · ${store.userById(r.passengerId).name}'
               '${r.driverId != null ? ' → ${store.userById(r.driverId!).name}' : ''} · ${timeAgo(r.createdAt)}',
               overflow: TextOverflow.ellipsis,
             ),
@@ -111,8 +133,11 @@ void showRideDetails(BuildContext context, RideRequest r) {
             StatusChip(r.status.label, rideStatusColor(r.status)),
             const SizedBox(height: 12),
             RouteLines(from: r.from, to: r.to),
+            ServiceInfo(ride: r),
             const SizedBox(height: 12),
-            _line('Type', r.vehicleType.label),
+            _line('Service', r.service.label),
+            _line('Vehicle', r.vehicleType.label),
+            _line('Payment', r.payment.label),
             _line('Distance', '${r.distanceKm.toStringAsFixed(1)} km'),
             _line('Passenger', '${p.name} · ${p.phone}'),
             _line('Driver', d == null ? '-' : '${d.name} · ${d.phone} · ${d.driver!.vehicle.plate}'),
@@ -122,14 +147,17 @@ void showRideDetails(BuildContext context, RideRequest r) {
             _line('Requested', '${hhmm(r.createdAt)} (${timeAgo(r.createdAt)})'),
             if (r.completedAt != null) _line('Completed', hhmm(r.completedAt!)),
             if (r.cancelReason != null) _line('Cancelled', 'by ${r.cancelledBy}: ${r.cancelReason}'),
-            if (r.driverRatingGiven != null) _line('Driver rated', '★ ${r.driverRatingGiven}'),
-            if (r.passengerRatingGiven != null) _line('Passenger rated', '★ ${r.passengerRatingGiven}'),
+            if (r.driverRatingGiven != null)
+              _line('Driver review', '★ ${r.driverRatingGiven}${r.driverReview.isEmpty ? '' : ' · ${r.driverReview}'}'),
+            if (r.passengerRatingGiven != null)
+              _line('Passenger review',
+                  '★ ${r.passengerRatingGiven}${r.passengerReview.isEmpty ? '' : ' · ${r.passengerReview}'}'),
             if (r.comment.isNotEmpty) _line('Comment', r.comment),
             if (r.chat.isNotEmpty) ...[
               const SizedBox(height: 8),
               const Text('Chat', style: TextStyle(fontWeight: FontWeight.w700)),
               for (final m in r.chat)
-                Text('${store.userById(m.senderId).name}: ${m.text}', style: const TextStyle(fontSize: 13)),
+                Text('${store.userById(m.senderId).name}: ${m.isCall ? '📞 ' : ''}${m.text}', style: const TextStyle(fontSize: 13)),
             ],
           ]),
         ),
@@ -156,6 +184,138 @@ Widget _line(String k, String v) => Padding(
         Expanded(child: Text(v)),
       ]),
     );
+
+// ================================================================ Payments
+
+class AdminPayments extends StatelessWidget {
+  const AdminPayments({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = StoreScope.of(context);
+    final since = DateTime.now().subtract(const Duration(hours: 24));
+    final today = store.transactions.where((t) => t.time.isAfter(since) && t.status == TxStatus.success);
+    final topUps = today.where((t) => t.type == TxType.topUp).fold(0, (s, t) => s + t.amount);
+    final commission = -today.where((t) => t.type == TxType.commission).fold(0, (s, t) => s + t.amount);
+    final negative = store.allDrivers.where((u) => u.walletBalance < 0).toList();
+    final pending = store.pendingTopUps;
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Wrap(spacing: 12, runSpacing: 12, children: [
+          _summary('Top-ups (24 h)', pkr(topUps)),
+          _summary('Commission collected (24 h)', pkr(commission)),
+          _summary('Drivers below zero', '${negative.length}'),
+        ]),
+        const SizedBox(height: 20),
+        Text('Pending top-ups (${pending.length})', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        const SizedBox(height: 8),
+        if (pending.isEmpty)
+          const Text('Nothing to check', style: TextStyle(color: AppColors.muted))
+        else
+          AdminCard(
+            padding: EdgeInsets.zero,
+            child: Column(children: [
+              for (final t in pending)
+                ListTile(
+                  title: Text('${store.userById(t.userId).name} · ${pkr(t.amount)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text('${t.method} · ${t.note} · ${timeAgo(t.time)}'),
+                  trailing: Wrap(spacing: 8, children: [
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36), foregroundColor: AppColors.danger),
+                      onPressed: () => store.rejectTopUp(t),
+                      child: const Text('Reject'),
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(minimumSize: const Size(0, 36)),
+                      onPressed: () => store.approveTopUp(t),
+                      child: const Text('Approve'),
+                    ),
+                  ]),
+                ),
+            ]),
+          ),
+        if (negative.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const Text('Drivers with negative balance', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          const SizedBox(height: 8),
+          AdminCard(
+            padding: EdgeInsets.zero,
+            child: Column(children: [
+              for (final u in negative)
+                ListTile(
+                  title: Text(u.name),
+                  subtitle: Text(u.phone),
+                  trailing: Text(pkr(u.walletBalance),
+                      style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
+                ),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 20),
+        const Text('Latest transactions', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        const SizedBox(height: 8),
+        AdminCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(children: [
+            for (final t in store.transactions.take(40)) TransactionTile(t: t, who: store.userById(t.userId).name),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Widget _summary(String label, String value) => SizedBox(
+        width: 240,
+        child: AdminCard(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+            const SizedBox(height: 6),
+            Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      );
+}
+
+/// Support ki taraf se balance mein kami / bashi.
+Future<void> showAdjustBalance(BuildContext context, AppUser u) async {
+  final store = StoreScope.of(context);
+  final amount = TextEditingController();
+  final note = TextEditingController();
+  await showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Adjust balance · ${u.name}'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('Current balance: ${pkr(u.walletBalance)}'),
+        const SizedBox(height: 12),
+        TextField(
+          controller: amount,
+          keyboardType: const TextInputType.numberWithOptions(signed: true),
+          decoration: const InputDecoration(labelText: 'Amount (use - to deduct)', prefixText: 'Rs '),
+        ),
+        const SizedBox(height: 8),
+        TextField(controller: note, decoration: const InputDecoration(labelText: 'Reason')),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+          onPressed: () {
+            final a = int.tryParse(amount.text.trim());
+            if (a == null || a == 0 || note.text.trim().isEmpty) return;
+            store.adjustBalance(u, a, note.text.trim());
+            Navigator.pop(ctx);
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+  amount.dispose();
+  note.dispose();
+}
 
 // ================================================================ Support
 

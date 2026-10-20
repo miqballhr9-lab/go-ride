@@ -165,8 +165,23 @@ class DriverDetailScreen extends StatelessWidget {
                 _kv('Fares', pkr(earned)),
                 _kv('Commission', pkr(commission)),
                 _kv('Online now', d.online ? 'Yes' : 'No'),
+                _kv('Wallet', pkr(user.walletBalance)),
               ]),
             ),
+          if (rides.any((r) => r.driverReview.isNotEmpty)) ...[
+            const SizedBox(height: 12),
+            AdminCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Passenger comments', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                for (final r in rides.where((r) => r.driverReview.isNotEmpty).take(10))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text('★ ${r.driverRatingGiven}  "${r.driverReview}" · ${store.userById(r.passengerId).name}'),
+                  ),
+              ]),
+            ),
+          ],
           const SizedBox(height: 16),
           Wrap(spacing: 12, runSpacing: 12, children: [
             if (d.status == DriverStatus.pending || d.status == DriverStatus.rejected)
@@ -196,6 +211,12 @@ class DriverDetailScreen extends StatelessWidget {
                 icon: const Icon(Icons.block),
                 label: const Text('Block driver'),
               ),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48)),
+              onPressed: () => showAdjustBalance(context, user),
+              icon: const Icon(Icons.account_balance_wallet_outlined),
+              label: const Text('Adjust balance'),
+            ),
             if (d.status == DriverStatus.blocked)
               FilledButton.icon(
                 style: FilledButton.styleFrom(minimumSize: const Size(160, 48)),
@@ -294,6 +315,7 @@ class UserDetailScreen extends StatelessWidget {
               _kv('Rating', '★ ${user.passengerRating.toStringAsFixed(2)}'),
               _kv('Rides', '${rides.length}'),
               _kv('Support tickets', '${tickets.length}'),
+              _kv('Wallet', pkr(user.walletBalance)),
               _kv('Account', user.blocked ? 'Blocked' : 'Active'),
             ]),
           ),
@@ -313,6 +335,12 @@ class UserDetailScreen extends StatelessWidget {
                 icon: const Icon(Icons.block),
                 label: const Text('Block account'),
               ),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48)),
+              onPressed: () => showAdjustBalance(context, user),
+              icon: const Icon(Icons.account_balance_wallet_outlined),
+              label: const Text('Adjust balance'),
+            ),
             if (user.driver != null)
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48)),

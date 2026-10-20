@@ -11,6 +11,18 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 - Profile editing, blocked accounts cannot log in
 - Separate passenger and driver ratings
 
+**Services**
+- Ride (Moto / Ride Mini / Ride AC), Courier (parcel with receiver details, size, fragile) and Freight (Pickup / Shehzore / Mazda truck with cargo, weight and loading helpers)
+
+**Wallet and top-up**
+- Top up with JazzCash, Easypaisa, card (instant) or bank transfer (approved by the control office)
+- Passengers can pay rides from the wallet; commission is taken from the driver wallet after every ride
+- Drivers with a balance below zero cannot go online until they top up
+
+**Call, message and comments**
+- In-app call screen (phone numbers hidden) and chat during the ride
+- Rating with tags and a comment for both driver and passenger, visible to the control office
+
 **Passenger mode**
 - Choose Moto / Ride Mini / Ride AC, pickup and destination, recommended fare
 - Offer your own fare (down to 70% of recommended), comment for the driver
@@ -33,6 +45,7 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 - Users: search, view rides, block / unblock
 - Rides: filter by status and type, full ride details, cancel active rides
 - Support: reply to tickets with templates, close tickets
+- Payments: approve or reject bank transfer top-ups, drivers below zero, all transactions, manual balance adjustment
 - Fares & settings: base fare, per km, minimum fare per vehicle type, commission %
 
 ![App flow](docs/app-flow.png)

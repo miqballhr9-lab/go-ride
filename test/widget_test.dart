@@ -94,4 +94,75 @@ void main() {
     expect(store.currentUser!.isApprovedDriver, isTrue);
     store.dispose();
   });
+
+  test('Commission is taken from driver wallet; negative balance blocks going online', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.driver);
+    final me = store.currentUser!;
+    final start = me.walletBalance;
+    store.adjustBalance(me, -start - 50, 'test');
+    expect(store.canGoOnline, isFalse);
+    store.setDriverOnline(true);
+    expect(store.driverOnline, isFalse);
+    store.adjustBalance(me, 100, 'test');
+    store.setDriverOnline(true);
+    expect(store.driverOnline, isTrue);
+    store.dispose();
+  });
+
+  test('Instant top-up adds balance, bank transfer waits for approval', () async {
+    final store = AppStore();
+    store.demoLogin(AppMode.passenger);
+    final me = store.currentUser!;
+    final start = me.walletBalance;
+    final t = store.topUp(500, 'JazzCash', account: '••••4567');
+    expect(t.status, TxStatus.pending);
+    await Future.delayed(const Duration(seconds: 3));
+    expect(t.status, TxStatus.success);
+    expect(me.walletBalance, start + 500);
+    final bank = store.topUp(2000, 'Bank transfer', account: 'ref 1');
+    await Future.delayed(const Duration(seconds: 3));
+    expect(bank.status, TxStatus.pending);
+    expect(store.pendingTopUps, contains(bank));
+    store.approveTopUp(bank);
+    expect(me.walletBalance, start + 2500);
+    store.dispose();
+  });
+
+  test('Wallet payment needs enough balance', () {
+    final store = AppStore();
+    store.signup(phone: '+923007777777', name: 'W', email: '', city: 'Lahore');
+    final err = store.createRequest(VehicleType.mini, AppStore.places[0], AppStore.places[3], 500, '',
+        payment: PaymentMethod.wallet);
+    expect(err, isNotNull);
+    expect(store.passengerRide, isNull);
+    store.dispose();
+  });
+
+  test('Courier and freight fares include parcel size and helpers', () {
+    final store = AppStore(seed: false);
+    final a = AppStore.places[0], b = AppStore.places[3];
+    const large = ParcelDetails(receiverName: 'R', receiverPhone: '+923001234567', size: ParcelSize.large, description: 'Box');
+    expect(store.suggestedFare(VehicleType.mini, a, b, parcel: large),
+        store.suggestedFare(VehicleType.mini, a, b) + ParcelSize.large.surcharge);
+    const cargo = FreightDetails(cargo: 'Sofa', weightKg: 300, helpers: 2);
+    expect(store.suggestedFare(VehicleType.pickup, a, b, freight: cargo),
+        store.suggestedFare(VehicleType.pickup, a, b) + 2 * helperFee);
+  });
+
+  test('Freight driver receives freight requests', () {
+    final store = AppStore();
+    store.signup(phone: '+923006666666', name: 'Truck', email: '', city: 'Lahore');
+    store.registerDriver(
+      cnic: '3520212345671',
+      licenseNo: 'LHR-2',
+      documents: driverDocuments.toSet(),
+      vehicle: const Vehicle(type: VehicleType.shehzore, model: 'Shehzore', color: 'White', plate: 'LES-1', year: 2019),
+    );
+    store.approveDriver(store.currentUser!);
+    store.setDriverOnline(true);
+    expect(store.openRequests, isNotEmpty);
+    expect(store.openRequests.every((r) => r.service == ServiceType.freight && r.freight != null), isTrue);
+    store.dispose();
+  });
 }

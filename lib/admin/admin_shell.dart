@@ -7,7 +7,7 @@ import '../widgets/common.dart';
 import 'admin_ops.dart';
 import 'admin_people.dart';
 
-enum AdminPage { dashboard, liveMap, drivers, passengers, rides, support, settings }
+enum AdminPage { dashboard, liveMap, drivers, passengers, rides, payments, support, settings }
 
 extension on AdminPage {
   String get label => switch (this) {
@@ -16,6 +16,7 @@ extension on AdminPage {
         AdminPage.drivers => 'Drivers',
         AdminPage.passengers => 'Users',
         AdminPage.rides => 'Rides',
+        AdminPage.payments => 'Payments',
         AdminPage.support => 'Support',
         AdminPage.settings => 'Fares & settings',
       };
@@ -26,6 +27,7 @@ extension on AdminPage {
         AdminPage.drivers => Icons.badge_outlined,
         AdminPage.passengers => Icons.people_outline,
         AdminPage.rides => Icons.route_outlined,
+        AdminPage.payments => Icons.payments_outlined,
         AdminPage.support => Icons.support_agent,
         AdminPage.settings => Icons.tune,
       };
@@ -51,6 +53,7 @@ class _AdminShellState extends State<AdminShell> {
     int badge(AdminPage p) => switch (p) {
           AdminPage.drivers => store.pendingDrivers.length,
           AdminPage.support => store.openTickets,
+          AdminPage.payments => store.pendingTopUps.length,
           _ => 0,
         };
 
@@ -109,6 +112,7 @@ class _AdminShellState extends State<AdminShell> {
       AdminPage.drivers => const AdminDrivers(),
       AdminPage.passengers => const AdminUsers(),
       AdminPage.rides => const AdminRides(),
+      AdminPage.payments => const AdminPayments(),
       AdminPage.support => const AdminSupport(),
       AdminPage.settings => const AdminSettings(),
     };
@@ -168,6 +172,8 @@ class AdminDashboard extends StatelessWidget {
       ('Drivers online', '${store.onlineDrivers.length}', 'of ${store.allDrivers.where((u) => u.isApprovedDriver).length} approved', AdminPage.liveMap),
       ('Pending drivers', '${store.pendingDrivers.length}', 'Waiting for document review', AdminPage.drivers),
       ('Open tickets', '${store.openTickets}', 'Waiting for a support reply', AdminPage.support),
+      ('Pending top-ups', '${store.pendingTopUps.length}', 'Bank transfers to check', AdminPage.payments),
+      ('Courier · Freight (24 h)', '${store.ridesToday.where((r) => r.service == ServiceType.courier).length} · ${store.ridesToday.where((r) => r.service == ServiceType.freight).length}', 'Parcel and cargo orders', AdminPage.rides),
       ('Users', '${store.users.length}', 'All accounts', AdminPage.passengers),
     ];
     final recent = store.rides.take(8).toList();
@@ -205,7 +211,7 @@ class AdminDashboard extends StatelessWidget {
             for (final r in recent)
               ListTile(
                 title: Text('${r.from.name} → ${r.to.name}', overflow: TextOverflow.ellipsis),
-                subtitle: Text('${store.userById(r.passengerId).name} · ${r.vehicleType.label} · ${timeAgo(r.createdAt)}'),
+                subtitle: Text('${store.userById(r.passengerId).name} · ${r.service.label} · ${r.vehicleType.label} · ${timeAgo(r.createdAt)}'),
                 trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Text(pkr(r.finalFare), style: const TextStyle(fontWeight: FontWeight.w700)),
                   StatusChip(r.status.label, rideStatusColor(r.status)),

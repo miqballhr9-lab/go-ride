@@ -6,10 +6,59 @@ import '../main.dart';
 import '../models.dart';
 import '../screens/profile_screen.dart';
 import '../screens/support/support_home.dart';
+import '../screens/wallet_screen.dart';
 import '../store.dart';
 import '../theme.dart';
 
-String pkr(int amount) => 'Rs $amount';
+String pkr(int amount) => amount < 0 ? '-Rs ${-amount}' : 'Rs $amount';
+
+IconData serviceIcon(ServiceType s) => switch (s) {
+      ServiceType.ride => Icons.directions_car,
+      ServiceType.courier => Icons.inventory_2_outlined,
+      ServiceType.freight => Icons.local_shipping_outlined,
+    };
+
+IconData vehicleIcon(VehicleType t) => switch (t) {
+      VehicleType.moto => Icons.two_wheeler,
+      VehicleType.mini || VehicleType.ac => Icons.directions_car,
+      _ => Icons.local_shipping,
+    };
+
+/// Courier aur freight ki details (passenger, driver aur admin teeno jagah).
+class ServiceInfo extends StatelessWidget {
+  final RideRequest ride;
+  final bool showReceiverPhone;
+  const ServiceInfo({super.key, required this.ride, this.showReceiverPhone = true});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = ride.parcel, f = ride.freight;
+    if (p == null && f == null) return const SizedBox.shrink();
+    final lines = p != null
+        ? [
+            'Parcel: ${p.description} (${p.size.label}${p.fragile ? ', fragile' : ''})',
+            'Receiver: ${p.receiverName}${showReceiverPhone ? ' · ${p.receiverPhone}' : ''}',
+          ]
+        : [
+            'Cargo: ${f!.cargo}',
+            '${f.weightKg} kg · ${f.helpers == 0 ? 'no helpers' : '${f.helpers} loading helper${f.helpers > 1 ? 's' : ''}'}',
+          ];
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(serviceIcon(ride.service), size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (final l in lines) Text(l, style: const TextStyle(fontSize: 13)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
 
 String timeAgo(DateTime t) {
   final d = DateTime.now().difference(t);
@@ -284,6 +333,15 @@ class AppDrawer extends StatelessWidget {
             ),
             const Divider(),
             ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: const Text('Wallet'),
+              trailing: Text(pkr(user.walletBalance),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: user.walletBalance < 0 ? AppColors.danger : AppColors.dark)),
+              onTap: () => go(const WalletScreen()),
+            ),
+            ListTile(
               leading: const Icon(Icons.history),
               title: const Text('My rides'),
               onTap: () => go(const HistoryScreen()),
@@ -353,7 +411,7 @@ class HistoryScreen extends StatelessWidget {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       RouteLines(from: r.from, to: r.to),
                       const SizedBox(height: 6),
-                      Text('${r.vehicleType.label} · ${timeAgo(r.createdAt)} · ${asDriver ? 'as driver' : 'as passenger'}',
+                      Text('${r.service.label} · ${r.vehicleType.label} · ${timeAgo(r.createdAt)} · ${asDriver ? 'as driver' : 'as passenger'}',
                           style: const TextStyle(color: AppColors.muted, fontSize: 12)),
                     ]),
                   ),
