@@ -47,8 +47,13 @@ class RootGate extends StatelessWidget {
     final store = StoreScope.of(context);
     if (store.adminLoggedIn) return const AdminShell();
     if (store.currentUser == null) return const LoginScreen();
-    return store.mode == AppMode.passenger
-        ? const PassengerHome()
-        : const DriverHome();
+    return PopScope(
+      // Phone ka back button: driver se passenger, passenger se shuru ki screen.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && store.passengerRide == null && store.driverRide == null) store.goBack();
+      },
+      child: store.mode == AppMode.passenger ? const PassengerHome() : const DriverHome(),
+    );
   }
 }

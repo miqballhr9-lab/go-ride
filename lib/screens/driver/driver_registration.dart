@@ -62,7 +62,11 @@ class _DriverRegistrationState extends State<DriverRegistration> {
     final store = StoreScope.of(context);
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(title: const Text('Become a driver')),
+      appBar: AppBar(
+        leadingWidth: 96,
+        leading: BackMenuLeading(onBack: StoreScope.of(context).goBack),
+        title: const Text('Become a driver'),
+      ),
       body: Form(
         key: _form,
         child: ListView(

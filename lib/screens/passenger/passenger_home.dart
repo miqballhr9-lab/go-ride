@@ -145,6 +145,14 @@ class _PassengerHomeState extends State<PassengerHome> {
                   padding: const EdgeInsets.all(12),
                   child: Row(children: [
                     FloatingActionButton.small(
+                      heroTag: 'back',
+                      tooltip: 'Back',
+                      backgroundColor: Colors.white,
+                      onPressed: store.goBack,
+                      child: const Icon(Icons.arrow_back),
+                    ),
+                    const SizedBox(width: 6),
+                    FloatingActionButton.small(
                       heroTag: 'menu',
                       backgroundColor: Colors.white,
                       onPressed: () => Scaffold.of(ctx).openDrawer(),

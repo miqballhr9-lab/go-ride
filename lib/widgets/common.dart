@@ -304,6 +304,23 @@ Color rideStatusColor(RideStatus s) => switch (s) {
 void showSnack(BuildContext context, String msg) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
+/// AppBar ke shuru mein back aur menu dono buttons. AppBar mein `leadingWidth: 96` ke saath.
+class BackMenuLeading extends StatelessWidget {
+  final VoidCallback onBack;
+  const BackMenuLeading({super.key, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        IconButton(tooltip: 'Back', onPressed: onBack, icon: const Icon(Icons.arrow_back)),
+        if (Scaffold.maybeOf(context)?.hasDrawer ?? false)
+          IconButton(
+            tooltip: 'Menu',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+            icon: const Icon(Icons.menu),
+          ),
+      ]);
+}
+
 /// Side menu: profile, history, support, mode switch, logout.
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -361,7 +378,7 @@ class AppDrawer extends StatelessWidget {
               title: const Text('Control office (demo)'),
               onTap: () {
                 Navigator.pop(context);
-                store.logout();
+                // Back dabane pe isi screen pe wapas aayenge.
                 store.adminLogin(AppStore.adminUsername, AppStore.adminPassword);
               },
             ),

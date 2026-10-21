@@ -119,6 +119,16 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Back button: driver mode se passenger mode, passenger se shuru ki screen.
+  void goBack() {
+    if (currentUser == null) return;
+    if (mode == AppMode.driver) {
+      switchMode(AppMode.passenger);
+    } else {
+      logout();
+    }
+  }
+
   void switchMode(AppMode m) {
     if (m == AppMode.passenger && currentUser?.driver != null) setDriverOnline(false);
     mode = m;

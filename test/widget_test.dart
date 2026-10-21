@@ -165,4 +165,18 @@ void main() {
     expect(store.openRequests.every((r) => r.service == ServiceType.freight && r.freight != null), isTrue);
     store.dispose();
   });
+
+  test('Back goes from driver to passenger, then to start; admin returns to user screen', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.driver);
+    store.goBack();
+    expect(store.mode, AppMode.passenger);
+    expect(store.currentUser, isNotNull);
+    store.adminLogin(AppStore.adminUsername, AppStore.adminPassword);
+    store.adminLogout();
+    expect(store.currentUser, isNotNull);
+    store.goBack();
+    expect(store.currentUser, isNull);
+    store.dispose();
+  });
 }

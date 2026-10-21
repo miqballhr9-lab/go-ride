@@ -27,6 +27,8 @@ class DriverHome extends StatelessWidget {
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
+        leadingWidth: 96,
+        leading: BackMenuLeading(onBack: StoreScope.of(context).goBack),
         title: const Text('Driver mode', style: TextStyle(fontWeight: FontWeight.w800)),
         actions: [
           Text(store.driverOnline ? 'Online' : 'Offline',
@@ -149,7 +151,11 @@ class _DriverStatusScreen extends StatelessWidget {
     };
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(title: const Text('Driver mode')),
+      appBar: AppBar(
+        leadingWidth: 96,
+        leading: BackMenuLeading(onBack: StoreScope.of(context).goBack),
+        title: const Text('Driver mode'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
