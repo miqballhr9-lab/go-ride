@@ -122,7 +122,36 @@ class _AdminShellState extends State<AdminShell> {
       drawer: wide ? null : Drawer(child: nav(closeDrawer: true)),
       appBar: wide
           ? null
-          : AppBar(title: Text(page.label), backgroundColor: AppColors.surface),
+          : AppBar(
+              title: Text(page.label),
+              backgroundColor: AppColors.surface,
+              actions: [
+                IconButton(tooltip: 'Sign out', onPressed: store.adminLogout, icon: const Icon(Icons.logout)),
+              ],
+              // Chhoti screen pe saare pages upar tabs mein.
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: SizedBox(
+                  height: 48,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    children: [
+                      for (final p in AdminPage.values)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            avatar: Icon(p.icon, size: 16),
+                            label: Text(badge(p) > 0 ? '${p.label} (${badge(p)})' : p.label),
+                            selected: p == page,
+                            onSelected: (_) => go(p),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
       body: Row(children: [
         if (wide) nav(),
         Expanded(

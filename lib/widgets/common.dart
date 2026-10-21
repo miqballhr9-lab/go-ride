@@ -357,6 +357,15 @@ class AppDrawer extends StatelessWidget {
               onTap: () => go(const SafetyScreen()),
             ),
             ListTile(
+              leading: const Icon(Icons.admin_panel_settings_outlined),
+              title: const Text('Control office (demo)'),
+              onTap: () {
+                Navigator.pop(context);
+                store.logout();
+                store.adminLogin(AppStore.adminUsername, AppStore.adminPassword);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Log out'),
               onTap: () {
