@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 
+/// MIK ke rang (MIK LEDGER ke logo se): navy, hara, peela, laal.
 class AppColors {
-  static const brand = Color(0xFFB8F028); // lime green
-  static const dark = Color(0xFF16181D);
-  static const surface = Color(0xFFF3F4F6);
-  static const muted = Color(0xFF6B7280);
-  static const danger = Color(0xFFE5484D);
+  static const brand = Color(0xFF43B649); // MIK green
+  static const dark = Color(0xFF1E3A5F); // MIK navy
+  static const ink = Color(0xFF1C272C);
+  static const surface = Color(0xFFEEF1F2);
+  static const muted = Color(0xFF5D6B72);
+  static const warning = Color(0xFFF5BD4F); // MIK yellow
+  static const danger = Color(0xFFD94141); // MIK red
 }
 
 ThemeData buildTheme() {
   final scheme = ColorScheme.fromSeed(
-    seedColor: AppColors.brand,
+    seedColor: AppColors.dark,
     primary: AppColors.dark,
     secondary: AppColors.brand,
+    error: AppColors.danger,
     surface: Colors.white,
   );
   return ThemeData(
@@ -26,9 +30,10 @@ ThemeData buildTheme() {
       centerTitle: false,
     ),
     filledButtonTheme: FilledButtonThemeData(
+      // Navy button, safed likhai: parhne mein saaf.
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.brand,
-        foregroundColor: AppColors.dark,
+        backgroundColor: AppColors.dark,
+        foregroundColor: Colors.white,
         minimumSize: const Size.fromHeight(54),
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

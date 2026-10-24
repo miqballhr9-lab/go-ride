@@ -43,6 +43,7 @@ class WalletScreen extends StatelessWidget {
               Row(children: [
                 Expanded(
                   child: FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: AppColors.dark),
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopUpScreen())),
                     icon: const Icon(Icons.add),
                     label: const Text('Top up'),

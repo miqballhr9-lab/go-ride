@@ -438,7 +438,7 @@ class AppDrawer extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: FilledButton(
                 style: isDriver
-                    ? FilledButton.styleFrom(backgroundColor: AppColors.dark, foregroundColor: Colors.white)
+                    ? FilledButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: AppColors.dark)
                     : null,
                 onPressed: (store.passengerRide != null || store.driverRide != null)
                     ? null
