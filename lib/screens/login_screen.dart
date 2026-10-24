@@ -58,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
           case LoginResult.newUser:
             setState(() => step = _Step.signup);
           case LoginResult.blocked:
-            setState(() => error = 'This account has been blocked. Please contact Go Ride support.');
+            setState(() => error = 'This account has been blocked. Please contact MIK DRIVE support.');
         }
       case _Step.signup:
         final email = emailCtrl.text.trim();
@@ -111,7 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: AppColors.brand,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Text('Go Ride',
+                        child: const Text('MIK DRIVE',
                             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
                       ),
                       const SizedBox(height: 32),

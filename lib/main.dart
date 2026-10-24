@@ -9,7 +9,7 @@ import 'store.dart';
 import 'theme.dart';
 
 void main() {
-  runApp(GoRideApp(store: AppStore()));
+  runApp(MikDriveApp(store: AppStore()));
 }
 
 /// Store ko poori app tak pohanchata hai; state badalne pe UI rebuild hoti hai.
@@ -21,16 +21,16 @@ class StoreScope extends InheritedNotifier<AppStore> {
       context.dependOnInheritedWidgetOfExactType<StoreScope>()!.notifier!;
 }
 
-class GoRideApp extends StatelessWidget {
+class MikDriveApp extends StatelessWidget {
   final AppStore store;
-  const GoRideApp({super.key, required this.store});
+  const MikDriveApp({super.key, required this.store});
 
   @override
   Widget build(BuildContext context) {
     return StoreScope(
       store: store,
       child: MaterialApp(
-        title: 'Go Ride',
+        title: 'MIK DRIVE',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         home: const RootGate(),

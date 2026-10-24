@@ -1,4 +1,4 @@
-# Go Ride
+# MIK DRIVE
 
 An inDrive-style ride-hailing app: the passenger names their own fare, and drivers accept it or send a counter-offer.
 
@@ -33,7 +33,7 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 - Suspicious account flags (frequent cancellations, low rating, large negative balance), warnings and suspensions
 
 **Marketing**
-- Promo codes (percent or fixed, usage limits, expiry); Go Ride pays the driver the discount
+- Promo codes (percent or fixed, usage limits, expiry); MIK DRIVE pays the driver the discount
 - Referral codes: both users get a wallet bonus
 - Driver bonuses ("complete N rides, earn Rs X"), notifications to everyone, passengers or drivers, and a passenger app banner
 

@@ -708,7 +708,7 @@ class _AdminSettingsState extends State<AdminSettings> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Commission and zones', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             const SizedBox(height: 4),
-            const Text('Commission is the share of each completed ride drivers pay to Go Ride. '
+            const Text('Commission is the share of each completed ride drivers pay to MIK DRIVE. '
                 'The airport fee is added when a trip starts or ends at the airport.',
                 style: TextStyle(color: AppColors.muted)),
             const SizedBox(height: 12),

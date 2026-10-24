@@ -140,7 +140,7 @@ class _AdminShellState extends State<AdminShell> {
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
               child: Text(
-                'Go Ride',
+                'MIK DRIVE',
                 style: TextStyle(color: AppColors.brand, fontSize: 22, fontWeight: FontWeight.w900),
               ),
             ),

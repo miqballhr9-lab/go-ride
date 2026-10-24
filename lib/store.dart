@@ -457,7 +457,7 @@ class AppStore extends ChangeNotifier {
       _tx(req.passengerId, TxType.ridePayment, -req.passengerPays, rideId: req.id, time: time);
       _tx(driverId, TxType.rideEarning, req.passengerPays, rideId: req.id, time: time);
     }
-    // Promo ka discount Go Ride driver ko deta hai, taake driver ka nuqsan na ho.
+    // Promo ka discount MIK DRIVE driver ko deta hai, taake driver ka nuqsan na ho.
     if (req.discount > 0) _tx(driverId, TxType.promo, req.discount, rideId: req.id, time: time);
     // inDrive ki tarah commission driver ke wallet se kat-ta hai.
     _tx(driverId, TxType.commission, -req.commission, rideId: req.id, time: time);
@@ -547,7 +547,7 @@ class AppStore extends ChangeNotifier {
 
   void warnUser(AppUser u, String reason) {
     u.warnings++;
-    notify(Audience.user, 'Warning from Go Ride', reason, userId: u.id);
+    notify(Audience.user, 'Warning from MIK DRIVE', reason, userId: u.id);
     _audit('Warned user', '${u.name}: $reason');
     notifyListeners();
   }
@@ -1008,7 +1008,7 @@ class AppStore extends ChangeNotifier {
     _later(1, () {
       t.messages.add(TicketMessage(
         fromSupport: true,
-        text: 'Thank you for contacting Go Ride support. Your ticket number is ${t.id}. '
+        text: 'Thank you for contacting MIK DRIVE support. Your ticket number is ${t.id}. '
             'Our team will reply here as soon as possible.',
       ));
     });
@@ -1080,7 +1080,7 @@ class AppStore extends ChangeNotifier {
     if (!r.status.isActive) return;
     r.status = RideStatus.cancelled;
     r.cancelledBy = 'admin';
-    r.cancelReason = 'Cancelled by Go Ride support';
+    r.cancelReason = 'Cancelled by MIK DRIVE support';
     _audit('Cancelled ride', r.id);
     notifyListeners();
   }
@@ -1340,7 +1340,7 @@ class AppStore extends ChangeNotifier {
       id: _newId('U'),
       phone: demoPassengerPhone,
       name: 'Demo Passenger',
-      email: 'passenger@goride.demo',
+      email: 'passenger@mikdrive.demo',
       createdAt: now.subtract(const Duration(days: 30)),
     );
     _addUser(demoPassenger);
@@ -1348,7 +1348,7 @@ class AppStore extends ChangeNotifier {
       id: _newId('U'),
       phone: demoDriverPhone,
       name: 'Demo Driver',
-      email: 'driver@goride.demo',
+      email: 'driver@mikdrive.demo',
       createdAt: now.subtract(const Duration(days: 60)),
     )..driver = DriverProfile(
         cnic: '35202-1234567-1',
@@ -1434,7 +1434,7 @@ class AppStore extends ChangeNotifier {
       AppNotification(
           id: _newId('N'),
           audience: Audience.everyone,
-          title: 'Welcome to Go Ride',
+          title: 'Welcome to MIK DRIVE',
           body: 'Ride, courier, freight and intercity: all in one app. Offer your own fare!',
           time: now.subtract(const Duration(days: 1))),
       AppNotification(

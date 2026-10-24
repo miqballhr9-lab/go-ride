@@ -51,7 +51,7 @@ class _DriverRideViewState extends State<DriverRideView> {
                 if (ride.status == RideStatus.cancelled)
                   Text(ride.cancelReason ?? '', style: const TextStyle(color: AppColors.muted)),
                 if (ride.status == RideStatus.completed)
-                  Text('Go Ride commission: ${pkr(ride.commission)} · You keep ${pkr(fare - ride.commission)}',
+                  Text('MIK DRIVE commission: ${pkr(ride.commission)} · You keep ${pkr(fare - ride.commission)}',
                       style: const TextStyle(color: AppColors.muted)),
                 const SizedBox(height: 12),
                 Row(children: [
@@ -111,7 +111,7 @@ class _DriverRideViewState extends State<DriverRideView> {
             style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
             onPressed: () {
               store.raiseSos(ride);
-              showSnack(context, 'SOS sent. Go Ride safety team is alerted.');
+              showSnack(context, 'SOS sent. MIK DRIVE safety team is alerted.');
             },
             icon: const Icon(Icons.sos),
             label: const Text('SOS'),

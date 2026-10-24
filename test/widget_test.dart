@@ -6,7 +6,7 @@ import 'package:go_ride/store.dart';
 void main() {
   testWidgets('Login screen is shown', (tester) async {
     final store = AppStore();
-    await tester.pumpWidget(GoRideApp(store: store));
+    await tester.pumpWidget(MikDriveApp(store: store));
     expect(find.text('Enter your phone number'), findsOneWidget);
     store.dispose();
   });
@@ -183,7 +183,7 @@ void main() {
     store.dispose();
   });
 
-  test('Promo code lowers what the passenger pays; Go Ride pays the driver the discount', () async {
+  test('Promo code lowers what the passenger pays; MIK DRIVE pays the driver the discount', () async {
     final store = AppStore();
     store.demoLogin(AppMode.passenger);
     final a = AppStore.places[0], b = AppStore.places[3];

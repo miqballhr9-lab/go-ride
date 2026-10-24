@@ -78,7 +78,7 @@ class _DriverRegistrationState extends State<DriverRegistration> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text('Earn with Go Ride on your own schedule. Fill in your details and our team will '
+            const Text('Earn with MIK DRIVE on your own schedule. Fill in your details and our team will '
                 'verify your documents within 24 hours.',
                 style: TextStyle(color: AppColors.muted)),
             const SizedBox(height: 20),

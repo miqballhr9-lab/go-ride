@@ -35,7 +35,7 @@ class WalletScreen extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 isDriver
-                    ? 'Go Ride commission is taken from this balance after each ride.'
+                    ? 'MIK DRIVE commission is taken from this balance after each ride.'
                     : 'Pay for rides with your wallet instead of cash.',
                 style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
@@ -233,7 +233,7 @@ class _TopUpScreenState extends State<TopUpScreen> {
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
-              child: const Text('Send the amount to:\nGo Ride (Pvt) Ltd · Meezan Bank\nIBAN PK00 MEZN 0000 0000 0000 0000\n'
+              child: const Text('Send the amount to:\nMIK DRIVE (Pvt) Ltd · Meezan Bank\nIBAN PK00 MEZN 0000 0000 0000 0000\n'
                   'Then enter your transaction reference below.'),
             ),
           TextField(controller: account, decoration: InputDecoration(labelText: _accountLabel)),

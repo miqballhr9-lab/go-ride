@@ -140,7 +140,7 @@ extension TxTypeLabel on TxType {
         TxType.ridePayment => 'Ride payment',
         TxType.rideEarning => 'Ride earning',
         TxType.adjustment => 'Adjustment by support',
-        TxType.promo => 'Promo discount paid by Go Ride',
+        TxType.promo => 'Promo discount paid by MIK DRIVE',
         TxType.referral => 'Referral bonus',
         TxType.bonus => 'Driver bonus',
         TxType.withdrawal => 'Withdrawal',
@@ -502,7 +502,7 @@ class RideRequest {
   final DateTime? scheduledAt; // baad ke waqt ki ride / intercity rawangi
   final int seats; // intercity
   final String? promoCode;
-  final int discount; // promo se passenger ki bachat (Go Ride deta hai)
+  final int discount; // promo se passenger ki bachat (MIK DRIVE deta hai)
 
   RideStatus status = RideStatus.searching;
   bool refunded = false;

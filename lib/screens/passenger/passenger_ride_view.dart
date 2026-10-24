@@ -195,7 +195,7 @@ class _PassengerRideViewState extends State<PassengerRideView> {
               style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
               onPressed: () {
                 store.raiseSos(ride);
-                showSnack(context, 'SOS sent. Go Ride safety team is alerted and can see your trip. Call 15 if needed.');
+                showSnack(context, 'SOS sent. MIK DRIVE safety team is alerted and can see your trip. Call 15 if needed.');
               },
               icon: const Icon(Icons.sos),
               label: const Text('SOS'),

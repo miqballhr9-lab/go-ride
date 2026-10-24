@@ -15,7 +15,7 @@ const _faq = [
   ('How do I become a driver?',
       'Open the menu, tap "Driver mode" and complete the registration with your CNIC, license and vehicle documents. Our team reviews it within 24 hours.'),
   ('How does commission work for drivers?',
-      'Go Ride keeps a small percentage of each completed ride. You can see it on the Driver mode earnings card.'),
+      'MIK DRIVE keeps a small percentage of each completed ride. You can see it on the Driver mode earnings card.'),
   ('How do I cancel a ride?',
       'Tap "Cancel ride" before the trip starts and choose a reason. Frequent cancellations may lower your rating.'),
 ];
@@ -198,7 +198,7 @@ class _TicketThreadScreenState extends State<TicketThreadScreen> {
                   text: m.text,
                   mine: !m.fromSupport,
                   time: m.time,
-                  label: m.fromSupport ? 'Go Ride Support' : null,
+                  label: m.fromSupport ? 'MIK DRIVE Support' : null,
                 ),
             ],
           ),

@@ -49,7 +49,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  const Text('Go Ride', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('MIK DRIVE', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
                   const Text('Control office', style: TextStyle(color: AppColors.muted)),
                   const SizedBox(height: 24),
                   TextField(controller: user, decoration: const InputDecoration(labelText: 'Username')),
