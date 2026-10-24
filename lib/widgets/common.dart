@@ -121,9 +121,14 @@ class RideMap extends StatelessWidget {
       key: ValueKey('${from?.name}-${to?.name}-$center'),
       options: options,
       children: [
+        // CARTO Voyager: OpenStreetMap ka data, magar jaghon ke naam English mein
+        // (standard OSM map Pakistan mein naam Urdu mein dikhata hai). API key nahi chahiye.
         TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          subdomains: const ['a', 'b', 'c', 'd'],
+          retinaMode: RetinaMode.isHighDensity(context),
           userAgentPackageName: 'com.goride.go_ride',
+          maxZoom: 20,
         ),
         if (points.length == 2)
           PolylineLayer(polylines: [
@@ -147,6 +152,7 @@ class RideMap extends StatelessWidget {
           if (from != null) _pin(from!.point, AppColors.brand),
           if (to != null) _pin(to!.point, AppColors.dark),
         ]),
+        const SimpleAttributionWidget(source: Text('© OpenStreetMap contributors © CARTO')),
       ],
     );
   }
