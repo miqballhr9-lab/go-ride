@@ -296,4 +296,49 @@ void main() {
         containsAll(['City', 'City to City', 'Couriers', 'Freight', 'Groceries']));
     store.dispose();
   });
+
+  test('Buses: search, book with wallet, cancel and refund', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.passenger);
+    final me = store.currentUser!;
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final trips = store.searchBuses('Lahore', 'Islamabad', tomorrow);
+    expect(trips, isNotEmpty);
+    final t = trips.first;
+    final left = t.seatsLeft;
+    final start = me.walletBalance;
+    final err = store.bookBus(t, 1, PaymentMethod.wallet);
+    expect(err, t.pricePerSeat > start ? isNotNull : isNull);
+    if (err == null) {
+      expect(t.seatsLeft, left - 1);
+      expect(me.walletBalance, start - t.pricePerSeat);
+      expect(store.cancelBusBooking(store.myBusBookings.first), isNull);
+      expect(me.walletBalance, start);
+      expect(t.seatsLeft, left);
+    }
+    expect(store.bookBus(t, 2, PaymentMethod.cash), isNull);
+    expect(store.myBusBookings.first.seats, 2);
+    store.dispose();
+  });
+
+  test('Menu actions: open a service, driver filter, academy, settings, delete account', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.driver);
+    store.openService(ServiceType.groceries);
+    expect(store.mode, AppMode.passenger);
+    expect(store.takePendingService(), ServiceType.groceries);
+    store.switchMode(AppMode.driver);
+    store.takeSelfie();
+    store.setDriverOnline(true);
+    store.setDriverFilter(ServiceType.intercity);
+    expect(store.openRequests.every((r) => r.service == ServiceType.intercity), isTrue);
+    store.completeLesson('start');
+    expect(store.currentUser!.driver!.completedLessons, contains('start'));
+    store.updatePrefs(notifyPromos: false);
+    expect(store.currentUser!.notifyPromos, isFalse);
+    store.deleteAccount();
+    expect(store.currentUser, isNull);
+    expect(store.login(AppStore.demoDriverPhone), LoginResult.newUser);
+    store.dispose();
+  });
 }

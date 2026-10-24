@@ -507,6 +507,27 @@ class AdminReports extends StatelessWidget {
             ),
           ),
         ),
+        _title('Bus bookings (${store.busBookings.where((b) => !b.cancelled).length})'),
+        if (store.busBookings.isEmpty) _empty('No bus tickets booked yet'),
+        if (store.busBookings.isNotEmpty)
+          AdminCard(
+            padding: EdgeInsets.zero,
+            child: Column(children: [
+              for (final b in store.busBookings.take(20))
+                Builder(builder: (_) {
+                  final t = store.busTripById(b.tripId);
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.directions_bus_outlined),
+                    title: Text('${t.fromCity} → ${t.toCity} · ${t.operator} · ${b.seats} seat${b.seats > 1 ? 's' : ''}'),
+                    subtitle: Text('${store.userById(b.userId).name} · ${_dt(t.departs)} · ${b.payment.label}'),
+                    trailing: b.cancelled
+                        ? const StatusChip('Cancelled', AppColors.danger)
+                        : Text(pkr(b.total), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  );
+                }),
+            ]),
+          ),
       ],
     );
   }

@@ -28,6 +28,8 @@ class AppStore extends ChangeNotifier {
   final List<PromoCode> promos = [];
   final List<Incentive> incentives = [];
   final List<AppNotification> notifications = [];
+  final List<BusTrip> busTrips = [];
+  final List<BusBooking> busBookings = [];
   String bannerText = '';
   bool bannerActive = false;
 
@@ -87,7 +89,7 @@ class AppStore extends ChangeNotifier {
 
   AppUser? userByPhone(String phone) {
     for (final u in users.values) {
-      if (u.phone == phone) return u;
+      if (u.phone == phone && !u.deleted) return u;
     }
     return null;
   }
@@ -147,6 +149,51 @@ class AppStore extends ChangeNotifier {
   }
 
   static String _pkr(int v) => 'Rs $v';
+
+  /// Menu se service kholna (City, Couriers, Groceries...): passenger home pe wahi tab.
+  ServiceType? pendingService;
+
+  void openService(ServiceType s) {
+    if (mode == AppMode.driver) switchMode(AppMode.passenger);
+    pendingService = s;
+    notifyListeners();
+  }
+
+  ServiceType? takePendingService() {
+    final s = pendingService;
+    pendingService = null;
+    return s;
+  }
+
+  void setPhoto(Uint8List? bytes) {
+    currentUser!.photo = bytes;
+    notifyListeners();
+  }
+
+  void updatePrefs({String? language, bool? notifyRides, bool? notifyPromos}) {
+    final u = currentUser!;
+    if (language != null) u.language = language;
+    if (notifyRides != null) u.notifyRides = notifyRides;
+    if (notifyPromos != null) u.notifyPromos = notifyPromos;
+    notifyListeners();
+  }
+
+  /// Account delete: user ka data chhupa diya jata hai aur woh log out ho jata hai.
+  /// Usi number se dobara naya account ban sakta hai.
+  void deleteAccount() {
+    final u = currentUser!;
+    if (u.driver != null) setDriverOnline(false);
+    u.deleted = true;
+    _audit('User deleted their account', u.name);
+    currentUser = null;
+    mode = AppMode.passenger;
+    notifyListeners();
+  }
+
+  void completeLesson(String id) {
+    currentUser!.driver!.completedLessons.add(id);
+    notifyListeners();
+  }
 
   void updateProfile({required String name, required String email, required String city}) {
     final u = currentUser!;
@@ -883,6 +930,7 @@ class AppStore extends ChangeNotifier {
             r.status == RideStatus.searching &&
             r.vehicleType == type &&
             r.city == me.city &&
+            (driverFilter == null || r.service == driverFilter) &&
             r.passengerId != me.id &&
             !r.declinedDriverIds.contains(me.id) &&
             // Destination mode: sirf woh rides jo driver ki manzil ke 5 km andar khatam hon.
@@ -890,6 +938,99 @@ class AppStore extends ChangeNotifier {
         .take(8)
         .toList();
   }
+
+  /// Driver menu se "City to City" / "Freight": sirf usi service ki requests.
+  ServiceType? driverFilter;
+
+  void setDriverFilter(ServiceType? s) {
+    driverFilter = s;
+    notifyListeners();
+  }
+
+  // =========================================================== Buses
+  static const _busOperators = ['MIK Express', 'Green Line Coaches', 'Star Travels', 'City Connect'];
+
+  void _seedBuses() {
+    final now = DateTime.now();
+    const routes = [
+      ('Lahore', 'Islamabad', 2600, Duration(hours: 4, minutes: 30)),
+      ('Lahore', 'Karachi', 6800, Duration(hours: 18)),
+      ('Islamabad', 'Karachi', 7400, Duration(hours: 20)),
+    ];
+    for (var day = 0; day < 3; day++) {
+      for (final (a, b, price, dur) in routes) {
+        for (final (from, to) in [(a, b), (b, a)]) {
+          for (final hour in [7, 11, 15, 22]) {
+            final op = _busOperators[_rand.nextInt(_busOperators.length)];
+            final business = _rand.nextBool();
+            final t = BusTrip(
+              id: _newId('B'),
+              operator: op,
+              fromCity: from,
+              toCity: to,
+              departs: DateTime(now.year, now.month, now.day + day, hour, [0, 15, 30, 45][_rand.nextInt(4)]),
+              duration: dur,
+              pricePerSeat: business ? (price * 1.4 / 50).round() * 50 : price,
+              totalSeats: business ? 30 : 45,
+              busType: business ? 'Business' : 'Executive',
+            )..seatsLeft = 3 + _rand.nextInt(business ? 27 : 42);
+            busTrips.add(t);
+          }
+        }
+      }
+    }
+  }
+
+  List<BusTrip> searchBuses(String from, String to, DateTime day) => busTrips
+      .where((t) =>
+          t.fromCity == from &&
+          t.toCity == to &&
+          t.departs.year == day.year &&
+          t.departs.month == day.month &&
+          t.departs.day == day.day &&
+          t.departs.isAfter(DateTime.now()))
+      .toList()
+    ..sort((a, b) => a.departs.compareTo(b.departs));
+
+  BusTrip busTripById(String id) => busTrips.firstWhere((t) => t.id == id);
+
+  /// Bus ki seat book karna. Wallet se ho to paise foran katte hain.
+  String? bookBus(BusTrip trip, int seats, PaymentMethod payment) {
+    final me = currentUser!;
+    if (seats < 1 || seats > 6) return 'You can book 1 to 6 seats';
+    if (seats > trip.seatsLeft) return 'Only ${trip.seatsLeft} seats left on this bus';
+    final total = trip.pricePerSeat * seats;
+    if (payment == PaymentMethod.wallet && me.walletBalance < total) {
+      return 'Not enough wallet balance (${me.walletBalance}). Top up or pay at the terminal.';
+    }
+    trip.seatsLeft -= seats;
+    final b = BusBooking(id: _newId('K'), tripId: trip.id, userId: me.id, seats: seats, total: total, payment: payment);
+    busBookings.insert(0, b);
+    if (payment == PaymentMethod.wallet) {
+      _tx(me.id, TxType.ridePayment, -total, note: 'Bus ticket ${b.id} · ${trip.fromCity} → ${trip.toCity}');
+    }
+    notify(Audience.user, 'Bus ticket booked',
+        '${trip.operator} ${trip.fromCity} → ${trip.toCity}, ${_date(trip.departs)}. Ticket ${b.id}.',
+        userId: me.id);
+    notifyListeners();
+    return null;
+  }
+
+  /// Rawangi se 2 ghante pehle tak cancel; wallet wale paise wapas.
+  String? cancelBusBooking(BusBooking b) {
+    final trip = busTripById(b.tripId);
+    if (b.cancelled) return 'Already cancelled';
+    if (trip.departs.difference(DateTime.now()) < const Duration(hours: 2)) {
+      return 'Tickets can be cancelled up to 2 hours before departure';
+    }
+    b.cancelled = true;
+    trip.seatsLeft += b.seats;
+    if (b.payment == PaymentMethod.wallet) _tx(b.userId, TxType.refund, b.total, note: 'Bus ticket ${b.id} cancelled');
+    notifyListeners();
+    return null;
+  }
+
+  List<BusBooking> get myBusBookings => busBookings.where((b) => b.userId == currentUser?.id).toList();
 
   bool hasOffered(RideRequest r) => r.offers.any((o) => o.driverId == currentUser?.id);
 
@@ -1473,6 +1614,8 @@ class AppStore extends ChangeNotifier {
         fromSupport: false,
         text: 'I forgot my umbrella in a Suzuki Alto yesterday evening.',
         time: now.subtract(const Duration(hours: 5)))));
+
+    _seedBuses();
 
     // Promo codes, bonus, notifications, banner
     promos.addAll([

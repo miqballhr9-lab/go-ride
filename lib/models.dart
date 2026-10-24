@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:latlong2/latlong.dart';
 
 enum AppMode { passenger, driver }
@@ -417,6 +419,7 @@ class DriverProfile {
   DateTime licenseExpiry;
   DateTime? lastSelfieAt; // roz ek dafa chehre ki tasdeeq
   Place? destination; // destination mode
+  final Set<String> completedLessons = {}; // Drivers Academy
 
   DriverProfile({
     required this.cnic,
@@ -458,6 +461,13 @@ class AppUser {
   String? referredBy;
   int warnings = 0;
   DateTime? suspendedUntil;
+  Uint8List? photo; // profile ki tasveer
+
+  // Settings
+  String language = 'English';
+  bool notifyRides = true;
+  bool notifyPromos = true;
+  bool deleted = false;
 
   bool get suspended => suspendedUntil != null && suspendedUntil!.isAfter(DateTime.now());
 
@@ -566,6 +576,93 @@ class RideRequest {
 
   int get finalFare => acceptedOffer?.fare ?? fare;
 }
+
+// ------------------------------------------------------------ Buses
+
+/// Sheheron ke darmiyan bus ka safar (inDrive Buses jaisa): fixed kiraya, seat booking.
+class BusTrip {
+  final String id;
+  final String operator;
+  final String fromCity;
+  final String toCity;
+  final DateTime departs;
+  final Duration duration;
+  final int pricePerSeat;
+  final int totalSeats;
+  final String busType; // e.g. Executive, Business
+  int seatsLeft;
+
+  BusTrip({
+    required this.id,
+    required this.operator,
+    required this.fromCity,
+    required this.toCity,
+    required this.departs,
+    required this.duration,
+    required this.pricePerSeat,
+    required this.totalSeats,
+    required this.busType,
+  }) : seatsLeft = totalSeats;
+
+  DateTime get arrives => departs.add(duration);
+}
+
+class BusBooking {
+  final String id;
+  final String tripId;
+  final String userId;
+  final int seats;
+  final int total;
+  final PaymentMethod payment;
+  final DateTime bookedAt;
+  bool cancelled = false;
+  BusBooking({
+    required this.id,
+    required this.tripId,
+    required this.userId,
+    required this.seats,
+    required this.total,
+    required this.payment,
+    DateTime? bookedAt,
+  }) : bookedAt = bookedAt ?? DateTime.now();
+}
+
+/// Drivers Academy ka ek sabaq.
+class Lesson {
+  final String id;
+  final String title;
+  final int minutes;
+  final List<String> points;
+  const Lesson(this.id, this.title, this.minutes, this.points);
+}
+
+const academyLessons = [
+  Lesson('start', 'Getting started with MIK DRIVE', 3, [
+    'Go online with the switch at the top. You must pass the daily selfie check first.',
+    'Requests show the passenger\'s fare, route, distance and comment.',
+    'Accept the fare or offer your own price. The passenger chooses the driver they like.',
+  ]),
+  Lesson('rating', 'How to keep a high rating', 4, [
+    'Arrive on time and message the passenger if you are late.',
+    'Keep the car clean and the AC working for Ride AC.',
+    'Be polite, follow the route and never ask for more than the agreed fare.',
+  ]),
+  Lesson('safety', 'Safety on every trip', 3, [
+    'Check the passenger name before starting the trip.',
+    'Use the SOS button in an emergency. The safety team sees your trip instantly.',
+    'Never share personal phone numbers. Calls in the app keep numbers hidden.',
+  ]),
+  Lesson('money', 'Earnings, wallet and commission', 4, [
+    'Collect cash at the end of the trip, or get paid to your wallet for wallet rides.',
+    'Commission is taken from your wallet after each ride. Keep your balance above zero.',
+    'Withdraw your earnings to JazzCash, Easypaisa or a bank account from the wallet.',
+  ]),
+  Lesson('delivery', 'Couriers, groceries and freight', 5, [
+    'For couriers, check the parcel and receiver details before you leave.',
+    'For groceries, buy only the items on the list and keep the receipt.',
+    'For freight, confirm the weight and number of helpers before loading.',
+  ]),
+];
 
 enum TicketStatus { open, answered, closed }
 

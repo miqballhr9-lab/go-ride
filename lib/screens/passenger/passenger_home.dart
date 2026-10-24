@@ -5,6 +5,7 @@ import '../../main.dart';
 import '../../models.dart';
 import '../../store.dart';
 import '../../theme.dart';
+import '../../maps/location.dart';
 import '../../widgets/common.dart';
 import '../wallet_screen.dart';
 import 'offers_view.dart';
@@ -29,6 +30,27 @@ class _PassengerHomeState extends State<PassengerHome> {
   int discount = 0;
   String? promoMsg;
   bool bannerDismissed = false;
+  LatLng? mapCenter; // "meri location" ke baad map yahan
+
+  /// 📍 button: browser se jagah lo, map wahan le jao aur qareeb ki pickup chuno.
+  Future<void> _locateMe() async {
+    final store = StoreScope.of(context);
+    final city = store.currentCity;
+    final loc = await currentLocation();
+    if (!mounted) return;
+    final near = loc != null && const Distance().as(LengthUnit.Kilometer, loc, city.center) < 60;
+    if (!near) {
+      showSnack(context,
+          loc == null ? 'Could not get your location. Showing ${city.name}.' : 'You are outside ${city.name}. Showing the city centre.');
+    }
+    final target = near ? loc : city.center;
+    setState(() {
+      mapCenter = target;
+      if (service != ServiceType.groceries) from = _nearestPlace(city.places, target);
+      to = null;
+    });
+    _refreshFare();
+  }
   VehicleType type = VehicleType.mini;
   PaymentMethod payment = PaymentMethod.cash;
   ParcelDetails? parcel;
@@ -232,6 +254,13 @@ class _PassengerHomeState extends State<PassengerHome> {
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
+    // Menu se koi service chuni gayi ho (Couriers, Groceries...) to wahi tab kholo.
+    if (store.pendingService != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final s = store.takePendingService();
+        if (s != null && mounted) _setService(s);
+      });
+    }
     final ride = store.passengerRide;
     if (ride != null) {
       return ride.status == RideStatus.searching ? OffersView(ride: ride) : PassengerRideView(ride: ride);
@@ -247,7 +276,7 @@ class _PassengerHomeState extends State<PassengerHome> {
               children: [
                 Positioned.fill(
                   child: RideMap(
-                    center: store.currentCity.center,
+                    center: mapCenter ?? store.currentCity.center,
                     from: from,
                     to: to,
                     // inDrive jaisa: manzil chunne se pehle map ghuma kar pickup chuno.
@@ -298,6 +327,17 @@ class _PassengerHomeState extends State<PassengerHome> {
                         ),
                       ),
                     ),
+                  ),
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 28,
+                  child: FloatingActionButton.small(
+                    heroTag: 'locate',
+                    tooltip: 'My location',
+                    backgroundColor: Colors.white,
+                    onPressed: _locateMe,
+                    child: const Icon(Icons.near_me_outlined, color: AppColors.dark),
                   ),
                 ),
               ],

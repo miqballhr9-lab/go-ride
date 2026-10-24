@@ -56,6 +56,20 @@ class DriverHome extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
+      // inDrive jaisa neeche ka bar.
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        height: 64,
+        onDestinationSelected: (i) {
+          if (i == 1) Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
+          if (i == 2) Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+        },
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.directions_car_outlined), label: 'Requests'),
+          NavigationDestination(icon: Icon(Icons.history), label: 'History'),
+          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
+        ],
+      ),
       body: Column(children: [
         GestureDetector(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen())),
@@ -97,6 +111,18 @@ class DriverHome extends StatelessWidget {
                 : 'Your driving license expires on ${_d(profile.licenseExpiry)}. Renew it soon.',
           ),
         for (final i in store.incentivesFor(user)) _IncentiveCard(incentive: i),
+        if (store.driverFilter != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: InputChip(
+                avatar: Icon(serviceIcon(store.driverFilter!), size: 18),
+                label: Text('Only ${store.driverFilter!.label} requests'),
+                onDeleted: () => store.setDriverFilter(null),
+              ),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(children: [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 export '../maps/ride_map.dart';
 
@@ -8,6 +9,8 @@ import '../models.dart';
 import '../screens/profile_screen.dart';
 import '../screens/support/support_home.dart';
 import '../screens/wallet_screen.dart';
+import '../screens/menu_screens.dart';
+import '../screens/buses_screen.dart';
 import '../store.dart';
 import '../theme.dart';
 
@@ -211,15 +214,40 @@ Future<String?> pickReason(BuildContext context, String title, List<String> reas
 class Avatar extends StatelessWidget {
   final String name;
   final double size;
-  const Avatar(this.name, {super.key, this.size = 44});
+  final Uint8List? photo;
+  const Avatar(this.name, {super.key, this.size = 44, this.photo});
 
   @override
   Widget build(BuildContext context) => CircleAvatar(
         radius: size / 2,
         backgroundColor: AppColors.surface,
-        child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: size * 0.4, color: AppColors.dark)),
+        backgroundImage: photo == null ? null : MemoryImage(photo!),
+        child: photo != null
+            ? null
+            : Text(name.isEmpty ? '?' : name[0].toUpperCase(),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: size * 0.4, color: AppColors.dark)),
       );
+}
+
+/// inDrive jaisi rating: sitare, number aur kitni ratings.
+class RatingStars extends StatelessWidget {
+  final double rating;
+  final int count;
+  const RatingStars({super.key, required this.rating, required this.count});
+
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 1; i <= 5; i++)
+          Icon(
+            rating >= i - 0.25
+                ? Icons.star_rounded
+                : (rating >= i - 0.75 ? Icons.star_half_rounded : Icons.star_outline_rounded),
+            size: 20,
+            color: AppColors.warning,
+          ),
+        const SizedBox(width: 6),
+        Text('${rating.toStringAsFixed(2)} ($count)', style: const TextStyle(color: AppColors.muted, fontSize: 15)),
+      ]);
 }
 
 class StarPicker extends StatelessWidget {
@@ -285,7 +313,11 @@ class BackMenuLeading extends StatelessWidget {
       ]);
 }
 
-/// Side menu: profile, history, support, mode switch, logout.
+/// Social links. Aap ke page ke links yahan daalein.
+const facebookUrl = '';
+const instagramUrl = '';
+
+/// Side menu, inDrive ki tarteeb mein (passenger aur driver ke alag items).
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
 
@@ -295,82 +327,125 @@ class AppDrawer extends StatelessWidget {
     final user = store.currentUser!;
     final isDriver = store.mode == AppMode.driver;
     final rating = isDriver ? user.driverRating : user.passengerRating;
+    final count = isDriver ? user.driverRatingCount : user.passengerRatingCount;
     void go(Widget page) {
       Navigator.pop(context);
       Navigator.push(context, MaterialPageRoute(builder: (_) => page));
     }
 
+    void service(ServiceType s) {
+      Navigator.pop(context);
+      store.openService(s);
+    }
+
+    void driverFilter(ServiceType? s) {
+      Navigator.pop(context);
+      final type = user.driver?.vehicle.type;
+      if (s != null && type != null && !s.vehicles.contains(type)) {
+        showSnack(context, '${s.label} needs a ${s.vehicles.map((v) => v.label).join(' or ')}. Yours is ${type.label}.');
+        return;
+      }
+      store.setDriverFilter(s);
+    }
+
+    Widget item(IconData icon, String label, VoidCallback onTap, {bool selected = false, Widget? trailing, bool isNew = false}) =>
+        ListTile(
+          selected: selected,
+          selectedTileColor: AppColors.surface,
+          selectedColor: AppColors.dark,
+          leading: isNew
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: AppColors.danger, borderRadius: BorderRadius.circular(6)),
+                  child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+                )
+              : Icon(icon, color: AppColors.muted),
+          title: Text(label, style: const TextStyle(fontSize: 17)),
+          trailing: trailing,
+          onTap: onTap,
+        );
+
+    final unread = store.unreadNotifications;
+    final bell = item(Icons.notifications_outlined, 'Notifications', () => go(const NotificationsScreen()),
+        trailing: unread > 0 ? StatusChip('$unread new', AppColors.danger) : null);
+    final common = [
+      bell,
+      item(Icons.shield_outlined, 'Safety', () => go(const SafetyScreen())),
+      item(Icons.settings_outlined, 'Settings', () => go(const SettingsScreen())),
+      item(Icons.info_outline, 'Help', () => go(const HelpScreen())),
+      item(Icons.support_agent, 'Support', () => go(const SupportHome())),
+    ];
+
+    final items = isDriver
+        ? [
+            item(Icons.directions_car_outlined, 'City', () => driverFilter(null), selected: store.driverFilter == null),
+            item(Icons.school_outlined, 'Drivers Academy', () => go(const AcademyScreen())),
+            item(Icons.account_balance_wallet_outlined, 'Wallet', () => go(const WalletScreen()),
+                trailing: Text(pkr(user.walletBalance),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, color: user.walletBalance < 0 ? AppColors.danger : AppColors.dark))),
+            item(Icons.public, 'City to City', () => driverFilter(ServiceType.intercity),
+                selected: store.driverFilter == ServiceType.intercity),
+            item(Icons.local_shipping_outlined, 'Freight', () => driverFilter(ServiceType.freight),
+                selected: store.driverFilter == ServiceType.freight),
+            ...common,
+            item(Icons.edit_note, 'Online registration', () => go(const OnlineRegistrationScreen())),
+            item(Icons.card_giftcard, 'Invite a friend', () => go(const ReferralScreen())),
+          ]
+        : [
+            item(Icons.directions_car_outlined, 'City', () => service(ServiceType.ride)),
+            item(Icons.history, 'Request history', () => go(const HistoryScreen())),
+            item(Icons.local_grocery_store_outlined, 'Groceries in 30 min', () => service(ServiceType.groceries),
+                isNew: true),
+            item(Icons.inventory_2_outlined, 'Couriers', () => service(ServiceType.courier)),
+            item(Icons.public, 'City to City', () => service(ServiceType.intercity)),
+            item(Icons.local_shipping_outlined, 'Freight', () => service(ServiceType.freight)),
+            item(Icons.directions_bus_outlined, 'Buses', () => go(const BusesScreen())),
+            item(Icons.account_balance_wallet_outlined, 'Wallet', () => go(const WalletScreen()),
+                trailing: Text(pkr(user.walletBalance), style: const TextStyle(fontWeight: FontWeight.w700))),
+            ...common,
+            item(Icons.card_giftcard, 'Invite a friend', () => go(const ReferralScreen())),
+          ];
+
     return Drawer(
       child: SafeArea(
         child: Column(
           children: [
-            ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: Avatar(user.name, size: 52),
-              title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-              subtitle: Text('★ ${rating.toStringAsFixed(2)}  ·  ${user.phone}'),
-              trailing: const Icon(Icons.chevron_right),
+            InkWell(
               onTap: () => go(const ProfileScreen()),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 12, 16),
+                child: Row(children: [
+                  Avatar(user.name, size: 64, photo: user.photo),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(user.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20)),
+                      const SizedBox(height: 4),
+                      RatingStars(rating: rating, count: count),
+                    ]),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ]),
+              ),
             ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.account_balance_wallet_outlined),
-              title: const Text('Wallet'),
-              trailing: Text(pkr(user.walletBalance),
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: user.walletBalance < 0 ? AppColors.danger : AppColors.dark)),
-              onTap: () => go(const WalletScreen()),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(padding: EdgeInsets.zero, children: [
+                ...items,
+                item(Icons.admin_panel_settings_outlined, 'Control office (demo)', () {
+                  Navigator.pop(context);
+                  // Back dabane pe isi screen pe wapas aayenge.
+                  store.adminLogin(AppStore.adminUsername, AppStore.adminPassword);
+                }),
+              ]),
             ),
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('My rides'),
-              onTap: () => go(const HistoryScreen()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.support_agent),
-              title: const Text('Support'),
-              onTap: () => go(const SupportHome()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.shield_outlined),
-              title: const Text('Safety'),
-              onTap: () => go(const SafetyScreen()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.notifications_outlined),
-              title: const Text('Notifications'),
-              trailing: store.unreadNotifications > 0
-                  ? StatusChip('${store.unreadNotifications} new', AppColors.danger)
-                  : null,
-              onTap: () => go(const NotificationsScreen()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.card_giftcard),
-              title: const Text('Invite friends'),
-              subtitle: Text('Code ${user.referralCode} · both get ${pkr(AppStore.referralBonus)}'),
-              onTap: () => go(const ReferralScreen()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.admin_panel_settings_outlined),
-              title: const Text('Control office (demo)'),
-              onTap: () {
-                Navigator.pop(context);
-                // Back dabane pe isi screen pe wapas aayenge.
-                store.adminLogin(AppStore.adminUsername, AppStore.adminPassword);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Log out'),
-              onTap: () {
-                Navigator.pop(context);
-                store.logout();
-              },
-            ),
-            const Spacer(),
+            const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: FilledButton(
                 style: isDriver
                     ? FilledButton.styleFrom(backgroundColor: AppColors.brand, foregroundColor: AppColors.dark)
@@ -384,11 +459,24 @@ class AppDrawer extends StatelessWidget {
                 child: Text(isDriver ? 'Passenger mode' : 'Driver mode'),
               ),
             ),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              _social(context, FontAwesomeIcons.facebookF, 'Facebook', facebookUrl),
+              const SizedBox(width: 24),
+              _social(context, FontAwesomeIcons.instagram, 'Instagram', instagramUrl),
+            ]),
+            const SizedBox(height: 8),
           ],
         ),
       ),
     );
   }
+
+  Widget _social(BuildContext context, FaIconData icon, String name, String url) => IconButton(
+        tooltip: name,
+        iconSize: 30,
+        icon: FaIcon(icon, color: AppColors.ink),
+        onPressed: () => showSnack(context, url.isEmpty ? '$name page link will be added soon' : url),
+      );
 }
 
 class HistoryScreen extends StatelessWidget {
@@ -400,7 +488,7 @@ class HistoryScreen extends StatelessWidget {
     final me = store.currentUser!;
     final list = store.historyFor(me.id);
     return Scaffold(
-      appBar: AppBar(title: const Text('My rides')),
+      appBar: AppBar(title: const Text('Request history')),
       body: list.isEmpty
           ? const Center(child: Text('No rides yet', style: TextStyle(color: AppColors.muted)))
           : ListView.separated(

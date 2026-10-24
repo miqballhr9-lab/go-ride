@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../main.dart';
 import '../models.dart';
@@ -47,17 +48,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Center(child: Avatar(u.name, size: 84)),
+          Center(
+            child: Stack(children: [
+              Avatar(u.name, size: 96, photo: u.photo),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: IconButton.filled(
+                  tooltip: 'Change photo',
+                  style: IconButton.styleFrom(backgroundColor: AppColors.dark),
+                  onPressed: () => _pickPhoto(context),
+                  icon: const Icon(Icons.photo_camera, color: Colors.white, size: 18),
+                ),
+              ),
+            ]),
+          ),
+          if (u.photo != null)
+            Center(
+              child: TextButton(onPressed: () => store.setPhoto(null), child: const Text('Remove photo')),
+            ),
           const SizedBox(height: 8),
           Center(child: Text(u.phone, style: const TextStyle(color: AppColors.muted))),
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              'Passenger ★ ${u.passengerRating.toStringAsFixed(2)}'
-              '${d != null ? '   ·   Driver ★ ${u.driverRating.toStringAsFixed(2)}' : ''}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+          const SizedBox(height: 8),
+          Center(child: RatingStars(rating: u.passengerRating, count: u.passengerRatingCount)),
+          if (d != null) ...[
+            const SizedBox(height: 4),
+            Center(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('As driver  ', style: TextStyle(color: AppColors.muted)),
+                RatingStars(rating: u.driverRating, count: u.driverRatingCount),
+              ]),
             ),
-          ),
+          ],
           const SizedBox(height: 24),
           TextField(controller: name, decoration: const InputDecoration(labelText: 'Full name')),
           const SizedBox(height: 12),
@@ -106,4 +128,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Expanded(child: Text(v)),
         ]),
       );
+
+  Future<void> _pickPhoto(BuildContext context) async {
+    final store = StoreScope.of(context);
+    try {
+      final file = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 85);
+      if (file == null) return;
+      store.setPhoto(await file.readAsBytes());
+    } catch (_) {
+      if (context.mounted) showSnack(context, 'Could not open your photos. Please allow access and try again.');
+    }
+  }
 }

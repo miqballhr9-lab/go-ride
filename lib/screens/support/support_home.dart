@@ -5,20 +5,8 @@ import '../../models.dart';
 import '../../theme.dart';
 import '../../widgets/common.dart';
 import '../chat_screen.dart';
+import '../menu_screens.dart';
 
-const _faq = [
-  ('How is the fare decided?',
-      'You offer your own fare. Drivers nearby can accept it or send a counter-offer, and you choose the driver you like.'),
-  ('How do I pay?', 'Pay the driver in cash at the end of the ride. The agreed fare is shown in the app.'),
-  ('I left something in the car',
-      'Open "My rides", find the trip, then create a support ticket with category "Lost item". We will contact the driver.'),
-  ('How do I become a driver?',
-      'Open the menu, tap "Driver mode" and complete the registration with your CNIC, license and vehicle documents. Our team reviews it within 24 hours.'),
-  ('How does commission work for drivers?',
-      'MIK DRIVE keeps a small percentage of each completed ride. You can see it on the Driver mode earnings card.'),
-  ('How do I cancel a ride?',
-      'Tap "Cancel ride" before the trip starts and choose a reason. Frequent cancellations may lower your rating.'),
-];
 
 class SupportHome extends StatelessWidget {
   const SupportHome({super.key});
@@ -59,15 +47,14 @@ class SupportHome extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 20),
-          const Text('Frequently asked questions', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-          for (final (q, a) in _faq)
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: Text(q),
-              childrenPadding: const EdgeInsets.only(bottom: 12),
-              expandedAlignment: Alignment.centerLeft,
-              children: [Text(a, style: const TextStyle(color: AppColors.muted))],
-            ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Frequently asked questions'),
+            subtitle: const Text('Quick answers in Help'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpScreen())),
+          ),
         ],
       ),
     );

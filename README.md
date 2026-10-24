@@ -14,6 +14,14 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 **Services (like inDrive)**
 - City rides (Moto / Ride Mini / Ride AC), City to City, Couriers (parcel with receiver details, size, fragile), Freight (Pickup / Shehzore / Mazda truck with cargo, weight and loading helpers) and Groceries (pick a store, add a shopping list and budget; the driver buys and delivers)
 
+**Menus like inDrive**
+- Passenger: City, Request history, Groceries (NEW), Couriers, City to City, Freight, Buses, Wallet, Notifications, Safety, Settings, Help, Support, Invite a friend
+- Driver: City, Drivers Academy, Wallet, City to City, Freight, Notifications, Safety, Settings, Help, Support, Online registration, Invite a friend; bottom bar with Requests, History and Wallet
+- Profile photo, star rating with count, Facebook and Instagram buttons (links still to be added in `lib/widgets/common.dart`)
+- Settings (city, language, notifications, log out, delete account), Help (FAQ), Drivers Academy lessons, online registration status
+- Buses: search intercity buses by date, book seats (wallet or pay at terminal), cancel up to 2 hours before departure
+- "My location" button on the passenger map (browser location on web)
+
 **Wallet and top-up**
 - Top up with JazzCash, Easypaisa, card (instant) or bank transfer (approved by the control office)
 - Passengers can pay rides from the wallet; commission is taken from the driver wallet after every ride
