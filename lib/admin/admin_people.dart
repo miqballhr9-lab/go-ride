@@ -8,8 +8,8 @@ import 'admin_ops.dart';
 import 'admin_shell.dart';
 
 Color driverStatusColor(DriverStatus s) => switch (s) {
-      DriverStatus.pending => Colors.orange.shade800,
-      DriverStatus.approved => Colors.green.shade700,
+      DriverStatus.pending => AppColors.warning,
+      DriverStatus.approved => AppColors.brand,
       DriverStatus.rejected => AppColors.danger,
       DriverStatus.blocked => AppColors.danger,
     };
@@ -152,7 +152,7 @@ class DriverDetailScreen extends StatelessWidget {
                 for (final doc in driverDocuments)
                   Chip(
                     avatar: Icon(d.documents.contains(doc) ? Icons.check_circle : Icons.error_outline,
-                        size: 18, color: d.documents.contains(doc) ? Colors.green : AppColors.danger),
+                        size: 18, color: d.documents.contains(doc) ? AppColors.brand : AppColors.danger),
                     label: Text(doc),
                   ),
               ]),
@@ -390,7 +390,7 @@ class ModerationButtons extends StatelessWidget {
     final store = StoreScope.of(context);
     return Wrap(spacing: 12, runSpacing: 12, children: [
       OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48), foregroundColor: Colors.orange.shade900),
+        style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48), foregroundColor: AppColors.dark),
         onPressed: () async {
           final r = await pickReason(context, 'Send a warning', _reasons);
           if (r != null) store.warnUser(user, r);

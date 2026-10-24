@@ -301,7 +301,7 @@ class StarPicker extends StatelessWidget {
             IconButton(
               iconSize: 36,
               onPressed: () => onChanged(i),
-              icon: Icon(i <= value ? Icons.star_rounded : Icons.star_outline_rounded, color: Colors.amber),
+              icon: Icon(i <= value ? Icons.star_rounded : Icons.star_outline_rounded, color: AppColors.warning),
             ),
         ],
       );
@@ -313,21 +313,22 @@ class StatusChip extends StatelessWidget {
   const StatusChip(this.label, this.color, {super.key});
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
-      );
+  Widget build(BuildContext context) {
+    // Logo ke rang: hare aur peele pe navy likhai, baqi pe safed.
+    final ink = (color == AppColors.brand || color == AppColors.warning) ? AppColors.dark : Colors.white;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
+      child: Text(label, style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w700)),
+    );
+  }
 }
 
 Color rideStatusColor(RideStatus s) => switch (s) {
-      RideStatus.completed => Colors.green.shade700,
+      RideStatus.completed => AppColors.brand,
       RideStatus.cancelled => AppColors.danger,
-      RideStatus.searching => Colors.orange.shade800,
-      _ => Colors.blue.shade700,
+      RideStatus.searching => AppColors.warning,
+      _ => AppColors.dark,
     };
 
 void showSnack(BuildContext context, String msg) =>

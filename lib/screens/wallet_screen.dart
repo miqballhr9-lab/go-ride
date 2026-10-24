@@ -101,8 +101,8 @@ class TransactionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final positive = t.amount >= 0;
     final statusColor = switch (t.status) {
-      TxStatus.pending => Colors.orange.shade800,
-      TxStatus.success => Colors.green.shade700,
+      TxStatus.pending => AppColors.warning,
+      TxStatus.success => AppColors.brand,
       TxStatus.failed => AppColors.danger,
     };
     final detail = [
@@ -140,10 +140,9 @@ class TransactionTile extends StatelessWidget {
                 fontWeight: FontWeight.w800,
                 color: t.status == TxStatus.failed
                     ? AppColors.muted
-                    : (positive ? Colors.green.shade700 : AppColors.dark))),
+                    : AppColors.dark)),
         if (t.status != TxStatus.success)
-          Text(t.status == TxStatus.pending ? 'Pending' : 'Failed',
-              style: TextStyle(fontSize: 12, color: statusColor)),
+          StatusChip(t.status == TxStatus.pending ? 'Pending' : 'Failed', statusColor),
       ]),
     );
   }
@@ -255,11 +254,11 @@ class _TopUpScreenState extends State<TopUpScreen> {
   Widget _result(WalletTransaction t) {
     final (icon, color, title, text) = switch (t.status) {
       TxStatus.pending => t.method == 'Bank transfer'
-          ? (Icons.schedule, Colors.orange.shade800, 'Request submitted',
+          ? (Icons.schedule, AppColors.warning, 'Request submitted',
               'We will add ${pkr(t.amount)} to your wallet after checking your transfer.')
-          : (Icons.hourglass_top, Colors.orange.shade800, 'Processing payment…',
+          : (Icons.hourglass_top, AppColors.warning, 'Processing payment…',
               'Confirm the payment in your ${t.method} app.'),
-      TxStatus.success => (Icons.check_circle, Colors.green.shade700, 'Top-up successful',
+      TxStatus.success => (Icons.check_circle, AppColors.brand, 'Top-up successful',
           '${pkr(t.amount)} has been added to your wallet.'),
       TxStatus.failed => (Icons.error, AppColors.danger, 'Top-up failed', 'Please try again.'),
     };
@@ -314,7 +313,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         body: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Icon(Icons.schedule, size: 72, color: Colors.orange.shade800),
+            Icon(Icons.schedule, size: 72, color: AppColors.warning),
             const SizedBox(height: 16),
             const Text('Request sent',
                 textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),

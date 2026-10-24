@@ -441,7 +441,7 @@ class _PassengerHomeState extends State<PassengerHome> {
                 Padding(
                   padding: const EdgeInsets.only(top: 4, left: 4),
                   child: Text(promoMsg!,
-                      style: TextStyle(fontSize: 12, color: discount > 0 ? Colors.green.shade700 : AppColors.danger)),
+                      style: TextStyle(fontSize: 12, color: discount > 0 ? AppColors.dark : AppColors.danger, fontWeight: FontWeight.w600)),
                 ),
               const SizedBox(height: 8),
               Row(children: [

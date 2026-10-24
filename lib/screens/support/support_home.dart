@@ -75,8 +75,8 @@ class SupportHome extends StatelessWidget {
 }
 
 Color ticketColor(TicketStatus s) => switch (s) {
-      TicketStatus.open => Colors.orange.shade800,
-      TicketStatus.answered => Colors.blue.shade700,
+      TicketStatus.open => AppColors.warning,
+      TicketStatus.answered => AppColors.dark,
       TicketStatus.closed => AppColors.muted,
     };
 

@@ -75,7 +75,7 @@ class AdminSafety extends StatelessWidget {
                     u.driver!.licenseExpired
                         ? 'Expired ${u.driver!.licenseExpiry.day}/${u.driver!.licenseExpiry.month}'
                         : 'Expires ${u.driver!.licenseExpiry.day}/${u.driver!.licenseExpiry.month}',
-                    u.driver!.licenseExpired ? AppColors.danger : Colors.orange.shade800,
+                    u.driver!.licenseExpired ? AppColors.danger : AppColors.warning,
                   ),
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DriverDetailScreen(user: u))),
                 ),

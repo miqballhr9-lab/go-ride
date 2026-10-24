@@ -191,7 +191,7 @@ class _DriverRegistrationState extends State<DriverRegistration> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(docs.contains(doc) ? Icons.check_circle : Icons.add_a_photo_outlined,
-                    color: docs.contains(doc) ? Colors.green : AppColors.dark),
+                    color: docs.contains(doc) ? AppColors.brand : AppColors.dark),
                 title: Text(doc),
                 subtitle: Text(docs.contains(doc) ? 'Added' : 'Tap to add a photo'),
                 trailing: docs.contains(doc)

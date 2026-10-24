@@ -46,6 +46,19 @@ ThemeData buildTheme() {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
+    // Chips, switch aur progress bhi logo ke rangon mein.
+    chipTheme: ChipThemeData(
+      selectedColor: AppColors.brand.withValues(alpha: 0.3),
+      checkmarkColor: AppColors.dark,
+      side: const BorderSide(color: Color(0xFFC9D2D6)),
+    ),
+    switchTheme: SwitchThemeData(
+      trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? AppColors.brand : AppColors.surface),
+      thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? Colors.white : AppColors.muted),
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.dark),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppColors.surface,

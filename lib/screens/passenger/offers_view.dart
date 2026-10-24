@@ -48,7 +48,7 @@ class OffersView extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text('Promo ${ride.promoCode}: you save ${pkr(ride.discount)}',
-                      style: TextStyle(color: Colors.green.shade700)),
+                      style: const TextStyle(color: AppColors.dark, fontWeight: FontWeight.w600)),
                 ),
               const SizedBox(height: 12),
               Row(children: [

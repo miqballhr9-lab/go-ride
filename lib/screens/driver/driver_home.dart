@@ -35,7 +35,7 @@ class DriverHome extends StatelessWidget {
           Text(store.driverOnline ? 'Online' : 'Offline',
               style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: store.driverOnline ? Colors.green : AppColors.muted)),
+                  color: store.driverOnline ? AppColors.dark : AppColors.muted)),
           Switch(
             value: store.driverOnline,
             activeTrackColor: AppColors.brand,
@@ -157,7 +157,7 @@ class _DriverStatusScreen extends StatelessWidget {
     final (icon, color, title, text) = switch (profile.status) {
       DriverStatus.pending => (
           Icons.hourglass_top,
-          Colors.orange.shade800,
+          AppColors.warning,
           'Application under review',
           'Our team is checking your documents. This usually takes up to 24 hours. '
               'You will be able to go online once you are approved.'
@@ -261,9 +261,9 @@ class _RequestCard extends StatelessWidget {
             Wrap(spacing: 6, children: [
               StatusChip(req.service.label, AppColors.dark),
               if (req.scheduledAt != null)
-                StatusChip('${req.scheduledAt!.day}/${req.scheduledAt!.month} ${hhmm(req.scheduledAt!)}', Colors.blue.shade700),
+                StatusChip('${req.scheduledAt!.day}/${req.scheduledAt!.month} ${hhmm(req.scheduledAt!)}', AppColors.dark),
               if (req.service == ServiceType.intercity) StatusChip('${req.seats} seat${req.seats > 1 ? 's' : ''}', AppColors.dark),
-              if (req.payment == PaymentMethod.wallet) StatusChip('Wallet', Colors.green.shade700),
+              if (req.payment == PaymentMethod.wallet) StatusChip('Wallet', AppColors.brand),
             ]),
             const SizedBox(height: 8),
             RouteLines(from: req.from, to: req.to),
@@ -349,11 +349,11 @@ class _Banner extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
+          const Icon(Icons.warning_amber_rounded, color: AppColors.dark),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: TextStyle(color: Colors.orange.shade900))),
+          Expanded(child: Text(text, style: const TextStyle(color: AppColors.dark))),
         ]),
       );
 }

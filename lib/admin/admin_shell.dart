@@ -433,11 +433,11 @@ class _AdminLiveMapState extends State<AdminLiveMap> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              StatusChip('${online.length} online', Colors.green.shade700),
+              StatusChip('${online.length} online', AppColors.brand),
               for (final e in byType.entries)
                 if (e.value > 0) StatusChip('${e.key.label}: ${e.value}', AppColors.dark),
               StatusChip('${store.rides.where((r) => r.status.isActive && r.city == city).length} active rides',
-                  Colors.blue.shade700),
+                  AppColors.dark),
               if (sos > 0) StatusChip('$sos open SOS', AppColors.danger),
             ],
           ),
