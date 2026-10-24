@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../main.dart';
+import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
 
@@ -65,9 +66,20 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ],
                   const SizedBox(height: 16),
                   FilledButton(onPressed: _login, child: const Text('Sign in')),
-                  const SizedBox(height: 12),
-                  const Text('Demo: ${AppStore.adminUsername} / ${AppStore.adminPassword}',
-                      textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                  const SizedBox(height: 16),
+                  const Text('Demo: sign in as', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 6, runSpacing: 6, alignment: WrapAlignment.center, children: [
+                    for (final a in StoreScope.of(context).staff)
+                      ActionChip(
+                        label: Text(a.role.label),
+                        onPressed: () {
+                          user.text = a.username;
+                          pass.text = a.password;
+                          _login();
+                        },
+                      ),
+                  ]),
                 ]),
               ),
             ),

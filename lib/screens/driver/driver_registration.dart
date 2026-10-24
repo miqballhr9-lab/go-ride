@@ -22,6 +22,7 @@ class _DriverRegistrationState extends State<DriverRegistration> {
   final plate = TextEditingController();
   final year = TextEditingController();
   VehicleType type = VehicleType.mini;
+  DateTime? licenseExpiry;
   final Set<String> docs = {};
   String? error;
 
@@ -38,6 +39,10 @@ class _DriverRegistrationState extends State<DriverRegistration> {
   void _submit() {
     setState(() => error = null);
     if (!_form.currentState!.validate()) return;
+    if (licenseExpiry == null || licenseExpiry!.isBefore(DateTime.now())) {
+      setState(() => error = 'Add a valid (not expired) driving license expiry date');
+      return;
+    }
     final missing = driverDocuments.where((d) => !docs.contains(d)).toList();
     if (missing.isNotEmpty) {
       setState(() => error = 'Please add: ${missing.join(', ')}');
@@ -46,6 +51,7 @@ class _DriverRegistrationState extends State<DriverRegistration> {
     StoreScope.of(context).registerDriver(
       cnic: cnic.text.trim(),
       licenseNo: license.text.trim().toUpperCase(),
+      licenseExpiry: licenseExpiry,
       documents: docs,
       vehicle: Vehicle(
         type: type,
@@ -92,6 +98,26 @@ class _DriverRegistrationState extends State<DriverRegistration> {
               textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(labelText: 'Driving license number'),
               validator: _required,
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              tileColor: AppColors.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              leading: const Icon(Icons.event),
+              title: Text(licenseExpiry == null
+                  ? 'License expiry date'
+                  : 'License expires ${licenseExpiry!.day}/${licenseExpiry!.month}/${licenseExpiry!.year}'),
+              onTap: () async {
+                final now = DateTime.now();
+                final d = await showDatePicker(
+                  context: context,
+                  initialDate: licenseExpiry ?? now.add(const Duration(days: 365)),
+                  firstDate: now,
+                  lastDate: now.add(const Duration(days: 365 * 10)),
+                );
+                if (d != null) setState(() => licenseExpiry = d);
+              },
             ),
             const SizedBox(height: 20),
             const _Section('Vehicle'),

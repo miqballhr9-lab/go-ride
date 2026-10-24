@@ -58,19 +58,21 @@ extension VehicleTypeInfo on VehicleType {
 }
 
 /// inDrive jaisi services: sawari, parcel (courier) aur saman (freight).
-enum ServiceType { ride, courier, freight }
+enum ServiceType { ride, courier, freight, intercity }
 
 extension ServiceTypeInfo on ServiceType {
   String get label => switch (this) {
         ServiceType.ride => 'Ride',
         ServiceType.courier => 'Courier',
         ServiceType.freight => 'Freight',
+        ServiceType.intercity => 'Intercity',
       };
 
   List<VehicleType> get vehicles => switch (this) {
         ServiceType.ride => [VehicleType.moto, VehicleType.mini, VehicleType.ac],
         ServiceType.courier => [VehicleType.moto, VehicleType.mini],
         ServiceType.freight => [VehicleType.pickup, VehicleType.shehzore, VehicleType.truck],
+        ServiceType.intercity => [VehicleType.mini, VehicleType.ac],
       };
 }
 
@@ -129,7 +131,7 @@ extension PaymentMethodLabel on PaymentMethod {
       };
 }
 
-enum TxType { topUp, commission, ridePayment, rideEarning, adjustment }
+enum TxType { topUp, commission, ridePayment, rideEarning, adjustment, promo, referral, bonus, withdrawal, refund }
 
 extension TxTypeLabel on TxType {
   String get label => switch (this) {
@@ -138,6 +140,11 @@ extension TxTypeLabel on TxType {
         TxType.ridePayment => 'Ride payment',
         TxType.rideEarning => 'Ride earning',
         TxType.adjustment => 'Adjustment by support',
+        TxType.promo => 'Promo discount paid by Go Ride',
+        TxType.referral => 'Referral bonus',
+        TxType.bonus => 'Driver bonus',
+        TxType.withdrawal => 'Withdrawal',
+        TxType.refund => 'Refund',
       };
 }
 
@@ -207,7 +214,141 @@ class FareSettings {
 class Place {
   final String name;
   final LatLng point;
-  const Place(this.name, this.point);
+  final bool isAirport;
+  const Place(this.name, this.point, {this.isAirport = false});
+}
+
+/// Har sheher ki apni jaghein, kiraye aur services.
+class City {
+  final String name;
+  final LatLng center;
+  final List<Place> places;
+  FareSettings settings;
+  final Set<ServiceType> services;
+  int airportFee;
+
+  City({
+    required this.name,
+    required this.center,
+    required this.places,
+    required this.settings,
+    Set<ServiceType>? services,
+    this.airportFee = 150,
+  }) : services = services ?? ServiceType.values.toSet();
+
+  /// Intercity ke liye sheher khud ek jagah hai.
+  Place get asPlace => Place(name, center);
+}
+
+// ------------------------------------------------------------ Control office
+
+enum AdminRole { superAdmin, support, verification, finance }
+
+extension AdminRoleInfo on AdminRole {
+  String get label => switch (this) {
+        AdminRole.superAdmin => 'Super admin',
+        AdminRole.support => 'Support agent',
+        AdminRole.verification => 'Verification team',
+        AdminRole.finance => 'Finance',
+      };
+}
+
+class StaffAccount {
+  final String username;
+  final String password;
+  final String name;
+  final AdminRole role;
+  const StaffAccount(this.username, this.password, this.name, this.role);
+}
+
+class AuditEntry {
+  final DateTime time;
+  final String staff;
+  final String action;
+  final String target;
+  AuditEntry(this.staff, this.action, this.target, {DateTime? time}) : time = time ?? DateTime.now();
+}
+
+class SafetyAlert {
+  final String id;
+  final String rideId;
+  final String userId;
+  final DateTime time;
+  bool resolved = false;
+  String note = '';
+  SafetyAlert({required this.id, required this.rideId, required this.userId, DateTime? time})
+      : time = time ?? DateTime.now();
+}
+
+class PromoCode {
+  final String code;
+  final int percent; // 0 ho to fixed
+  final int fixed;
+  final int maxDiscount;
+  final int maxUses;
+  final DateTime expires;
+  int used = 0;
+  bool active = true;
+  PromoCode({
+    required this.code,
+    this.percent = 0,
+    this.fixed = 0,
+    this.maxDiscount = 300,
+    required this.maxUses,
+    required this.expires,
+  });
+
+  String get summary => percent > 0 ? '$percent% off (up to Rs $maxDiscount)' : 'Rs $fixed off';
+
+  int discountFor(int fare) => percent > 0 ? (fare * percent / 100).round().clamp(0, maxDiscount) : fixed.clamp(0, fare);
+}
+
+/// Driver bonus: "aaj itni rides poori karo, itne paise pao".
+class Incentive {
+  final String id;
+  final String title;
+  final VehicleType? vehicleType; // null = sab
+  final int targetRides;
+  final int reward;
+  final DateTime validUntil;
+  final Set<String> paidTo = {};
+  Incentive({
+    required this.id,
+    required this.title,
+    this.vehicleType,
+    required this.targetRides,
+    required this.reward,
+    required this.validUntil,
+  });
+}
+
+enum Audience { everyone, passengers, drivers, user }
+
+extension AudienceLabel on Audience {
+  String get label => switch (this) {
+        Audience.everyone => 'Everyone',
+        Audience.passengers => 'Passengers',
+        Audience.drivers => 'Drivers',
+        Audience.user => 'One user',
+      };
+}
+
+class AppNotification {
+  final String id;
+  final Audience audience;
+  final String? userId;
+  final String title;
+  final String body;
+  final DateTime time;
+  final Set<String> readBy = {};
+  AppNotification({
+    required this.id,
+    required this.audience,
+    this.userId,
+    required this.title,
+    required this.body,
+    DateTime? time,
+  }) : time = time ?? DateTime.now();
 }
 
 class Vehicle {
@@ -258,6 +399,9 @@ class DriverProfile {
   String? rejectionReason;
   bool online = false;
   LatLng? location;
+  DateTime licenseExpiry;
+  DateTime? lastSelfieAt; // roz ek dafa chehre ki tasdeeq
+  Place? destination; // destination mode
 
   DriverProfile({
     required this.cnic,
@@ -266,7 +410,15 @@ class DriverProfile {
     required this.documents,
     this.status = DriverStatus.pending,
     DateTime? submittedAt,
-  }) : submittedAt = submittedAt ?? DateTime.now();
+    DateTime? licenseExpiry,
+  })  : submittedAt = submittedAt ?? DateTime.now(),
+        licenseExpiry = licenseExpiry ?? DateTime.now().add(const Duration(days: 700));
+
+  bool get licenseExpired => licenseExpiry.isBefore(DateTime.now());
+  bool get licenseExpiringSoon =>
+      !licenseExpired && licenseExpiry.isBefore(DateTime.now().add(const Duration(days: 30)));
+  bool get selfieValid =>
+      lastSelfieAt != null && DateTime.now().difference(lastSelfieAt!) < const Duration(hours: 24);
 }
 
 class AppUser {
@@ -287,6 +439,12 @@ class AppUser {
 
   DriverProfile? driver;
   int walletBalance = 0;
+  String referralCode = '';
+  String? referredBy;
+  int warnings = 0;
+  DateTime? suspendedUntil;
+
+  bool get suspended => suspendedUntil != null && suspendedUntil!.isAfter(DateTime.now());
 
   AppUser({
     required this.id,
@@ -340,8 +498,14 @@ class RideRequest {
   int fare; // passenger ka bataya hua kiraya
   final String comment;
   final DateTime createdAt;
+  final String city;
+  final DateTime? scheduledAt; // baad ke waqt ki ride / intercity rawangi
+  final int seats; // intercity
+  final String? promoCode;
+  final int discount; // promo se passenger ki bachat (Go Ride deta hai)
 
   RideStatus status = RideStatus.searching;
+  bool refunded = false;
   final List<Offer> offers = [];
   final Set<String> declinedDriverIds = {};
   Offer? acceptedOffer;
@@ -368,9 +532,17 @@ class RideRequest {
     required this.fare,
     this.comment = '',
     DateTime? createdAt,
+    this.city = 'Lahore',
+    this.scheduledAt,
+    this.seats = 1,
+    this.promoCode,
+    this.discount = 0,
   }) : createdAt = createdAt ?? DateTime.now();
 
   String? get driverId => acceptedOffer?.driverId;
+
+  /// Passenger asal mein kitna dega (promo ke baad).
+  int get passengerPays => (finalFare - discount).clamp(0, finalFare);
 
   double get distanceKm =>
       const Distance().as(LengthUnit.Meter, from.point, to.point) / 1000;
@@ -415,6 +587,11 @@ class SupportTicket {
   final String? rideId;
   final DateTime createdAt;
   TicketStatus status = TicketStatus.open;
+  String? assignedTo; // staff ka naam
+
+  /// 2 ghante se zyada jawab ke baghair khula ticket.
+  bool get overdue =>
+      status == TicketStatus.open && DateTime.now().difference(createdAt) > const Duration(hours: 2);
   final List<TicketMessage> messages = [];
 
   SupportTicket({

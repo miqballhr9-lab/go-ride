@@ -23,7 +23,13 @@ class AppStore extends ChangeNotifier {
   final Map<String, AppUser> users = {};
   final List<RideRequest> rides = [];
   final List<SupportTicket> tickets = [];
-  FareSettings settings = FareSettings.defaults();
+  final List<AuditEntry> auditLog = [];
+  final List<SafetyAlert> alerts = [];
+  final List<PromoCode> promos = [];
+  final List<Incentive> incentives = [];
+  final List<AppNotification> notifications = [];
+  String bannerText = '';
+  bool bannerActive = false;
 
   final List<Timer> _timers = [];
   Timer? _requestFeed;
@@ -47,11 +53,29 @@ class AppStore extends ChangeNotifier {
   // =========================================================== Auth
   AppUser? currentUser;
   AppMode mode = AppMode.passenger;
-  bool adminLoggedIn = false;
+  StaffAccount? currentStaff;
+  bool get adminLoggedIn => currentStaff != null;
 
   static const demoOtp = '1234';
   static const adminUsername = 'admin';
   static const adminPassword = 'admin123';
+
+  final List<StaffAccount> staff = [
+    const StaffAccount(adminUsername, adminPassword, 'Ayesha (Super admin)', AdminRole.superAdmin),
+    const StaffAccount('support', 'support123', 'Bilal (Support)', AdminRole.support),
+    const StaffAccount('verify', 'verify123', 'Sana (Verification)', AdminRole.verification),
+    const StaffAccount('finance', 'finance123', 'Usman (Finance)', AdminRole.finance),
+  ];
+
+  void addStaff(StaffAccount a) {
+    staff.add(a);
+    _audit('Added staff account', '${a.name} · ${a.role.label}');
+    notifyListeners();
+  }
+
+  void _audit(String action, String target) {
+    auditLog.insert(0, AuditEntry(currentStaff?.name ?? 'System', action, target));
+  }
   static const demoPassengerPhone = '+923000000001';
   static const demoDriverPhone = '+923000000002';
 
@@ -78,18 +102,51 @@ class AppStore extends ChangeNotifier {
     return LoginResult.ok;
   }
 
-  void signup({
+  /// Naya account. Referral code sahi ho to dono ko bonus milta hai.
+  String? signup({
     required String phone,
     required String name,
     required String email,
     required String city,
+    String referral = '',
   }) {
+    AppUser? referrer;
+    if (referral.trim().isNotEmpty) {
+      referrer = userByReferral(referral);
+      if (referrer == null) return 'Referral code not found';
+    }
     final u = AppUser(id: _newId('U'), phone: phone, name: name, email: email, city: city);
-    users[u.id] = u;
+    _addUser(u);
+    if (referrer != null) {
+      u.referredBy = referrer.id;
+      _tx(u.id, TxType.referral, referralBonus, note: 'Joined with ${referrer.referralCode}');
+      _tx(referrer.id, TxType.referral, referralBonus, note: 'Invited ${u.name}');
+      notify(Audience.user, 'Referral bonus', '${u.name} joined with your code. ${_pkr(referralBonus)} added to your wallet.',
+          userId: referrer.id);
+    }
     currentUser = u;
     mode = AppMode.passenger;
     notifyListeners();
+    return null;
   }
+
+  static const referralBonus = 100;
+
+  void _addUser(AppUser u) {
+    users[u.id] = u;
+    final prefix = u.name.replaceAll(RegExp(r'[^A-Za-z]'), '').toUpperCase().padRight(3, 'X').substring(0, 3);
+    u.referralCode = '$prefix${100 + users.length}';
+  }
+
+  AppUser? userByReferral(String code) {
+    final c = code.trim().toUpperCase();
+    for (final u in users.values) {
+      if (u.referralCode == c) return u;
+    }
+    return null;
+  }
+
+  static String _pkr(int v) => 'Rs $v';
 
   void updateProfile({required String name, required String email, required String city}) {
     final u = currentUser!;
@@ -108,14 +165,19 @@ class AppStore extends ChangeNotifier {
   }
 
   bool adminLogin(String username, String password) {
-    if (username.trim() != adminUsername || password != adminPassword) return false;
-    adminLoggedIn = true;
-    notifyListeners();
-    return true;
+    for (final a in staff) {
+      if (a.username == username.trim() && a.password == password) {
+        currentStaff = a;
+        _audit('Signed in', a.role.label);
+        notifyListeners();
+        return true;
+      }
+    }
+    return false;
   }
 
   void adminLogout() {
-    adminLoggedIn = false;
+    currentStaff = null;
     notifyListeners();
   }
 
@@ -140,7 +202,7 @@ class AppStore extends ChangeNotifier {
     Place('Liberty Market', LatLng(31.5104, 74.3416)),
     Place('Mall Road', LatLng(31.5580, 74.3260)),
     Place('Anarkali Bazaar', LatLng(31.5686, 74.3140)),
-    Place('Allama Iqbal Airport', LatLng(31.5216, 74.4036)),
+    Place('Allama Iqbal Airport', LatLng(31.5216, 74.4036), isAirport: true),
     Place('DHA Phase 5', LatLng(31.4637, 74.4096)),
     Place('Johar Town', LatLng(31.4697, 74.2728)),
     Place('Model Town', LatLng(31.4835, 74.3256)),
@@ -152,21 +214,103 @@ class AppStore extends ChangeNotifier {
   ];
 
   static const cityCenter = LatLng(31.5204, 74.3587);
-  static const cities = ['Lahore', 'Karachi', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan'];
+  static const cities = ['Lahore', 'Karachi', 'Islamabad'];
+
+  late final Map<String, City> cityData = {
+    'Lahore': City(name: 'Lahore', center: cityCenter, places: places, settings: FareSettings.defaults()),
+    'Karachi': City(
+      name: 'Karachi',
+      center: const LatLng(24.8607, 67.0011),
+      settings: FareSettings.defaults()..commissionPercent = 12,
+      places: const [
+        Place('Clifton Beach', LatLng(24.7925, 67.0336)),
+        Place('Dolmen Mall Clifton', LatLng(24.8022, 67.0300)),
+        Place('Saddar', LatLng(24.8556, 67.0225)),
+        Place('Jinnah International Airport', LatLng(24.9065, 67.1608), isAirport: true),
+        Place('Gulshan-e-Iqbal', LatLng(24.9180, 67.0971)),
+        Place('Tariq Road', LatLng(24.8722, 67.0626)),
+        Place('DHA Phase 6', LatLng(24.8040, 67.0670)),
+        Place('Port Grand', LatLng(24.8478, 66.9893)),
+        Place('Lucky One Mall', LatLng(24.9326, 67.0870)),
+        Place('Karachi Cantt Station', LatLng(24.8432, 67.0436)),
+      ],
+    ),
+    'Islamabad': City(
+      name: 'Islamabad',
+      center: const LatLng(33.6844, 73.0479),
+      settings: FareSettings.defaults(),
+      airportFee: 250,
+      places: const [
+        Place('Faisal Mosque', LatLng(33.7295, 73.0372)),
+        Place('Centaurus Mall', LatLng(33.7077, 73.0500)),
+        Place('Blue Area', LatLng(33.7104, 73.0590)),
+        Place('F-6 Super Market', LatLng(33.7270, 73.0763)),
+        Place('F-7 Jinnah Super', LatLng(33.7206, 73.0566)),
+        Place('Islamabad International Airport', LatLng(33.5491, 72.8256), isAirport: true),
+        Place('Daman-e-Koh', LatLng(33.7401, 73.0569)),
+        Place('Pakistan Monument', LatLng(33.6935, 73.0686)),
+        Place('G-9 Markaz', LatLng(33.6880, 73.0320)),
+        Place('Bahria Town Phase 4', LatLng(33.5309, 73.1203)),
+      ],
+    ),
+  };
+
+  City cityOf(String? name) => cityData[name] ?? cityData['Lahore']!;
+  City get currentCity => cityOf(currentUser?.city);
+  FareSettings get settings => currentCity.settings;
+
+  /// Intercity ke liye doosre sheher.
+  List<Place> intercityDestinations(String fromCity) =>
+      [for (final c in cityData.values) if (c.name != fromCity) c.asPlace];
 
   /// Mashwara kiraya (PKR): base + per km, kam se kam minimum.
-  /// Parcel ke size aur freight ke mazdooron ka kharcha upar se.
-  int suggestedFare(VehicleType type, Place from, Place to, {ParcelDetails? parcel, FreightDetails? freight}) {
+  /// Parcel ke size, freight ke mazdooron aur airport ka kharcha upar se.
+  int suggestedFare(VehicleType type, Place from, Place to,
+      {ParcelDetails? parcel, FreightDetails? freight, String? city, ServiceType service = ServiceType.ride}) {
+    final c = cityOf(city ?? currentUser?.city);
+    final st = c.settings;
     final km = const Distance().as(LengthUnit.Meter, from.point, to.point) / 1000;
-    final fare = settings.baseFare[type]! + km * settings.perKm[type]!;
-    final extras = (parcel?.size.surcharge ?? 0) + (freight?.helpers ?? 0) * helperFee;
-    return max(settings.minFare[type]!, (fare / 10).round() * 10) + extras;
+    // Intercity: lamba safar, per km sasta.
+    final perKm = service == ServiceType.intercity ? st.perKm[type]! * 0.6 : st.perKm[type]!;
+    final fare = st.baseFare[type]! + km * perKm;
+    final airport = (from.isAirport || to.isAirport) ? c.airportFee : 0;
+    final extras = (parcel?.size.surcharge ?? 0) + (freight?.helpers ?? 0) * helperFee + airport;
+    return max(st.minFare[type]!, (fare / 10).round() * 10) + extras;
   }
 
   /// inDrive ki tarah passenger mashwara kiraye se kam bhi offer kar sakta hai, magar had tak.
-  int lowestAllowedFare(VehicleType type, Place from, Place to, {ParcelDetails? parcel, FreightDetails? freight}) =>
-      max(settings.minFare[type]!,
-          (suggestedFare(type, from, to, parcel: parcel, freight: freight) * 0.7 / 10).round() * 10);
+  int lowestAllowedFare(VehicleType type, Place from, Place to,
+          {ParcelDetails? parcel, FreightDetails? freight, String? city, ServiceType service = ServiceType.ride}) =>
+      max(
+          cityOf(city ?? currentUser?.city).settings.minFare[type]!,
+          (suggestedFare(type, from, to, parcel: parcel, freight: freight, city: city, service: service) * 0.7 / 10)
+                  .round() *
+              10);
+
+  // =========================================================== Promo codes
+  /// Promo ka discount, ya galti ka paigham.
+  (int, String?) checkPromo(String code, int fare) {
+    final c = code.trim().toUpperCase();
+    for (final p in promos) {
+      if (p.code != c) continue;
+      if (!p.active || p.expires.isBefore(DateTime.now())) return (0, 'This promo code has expired');
+      if (p.used >= p.maxUses) return (0, 'This promo code has been fully used');
+      return (p.discountFor(fare), null);
+    }
+    return (0, 'Promo code not found');
+  }
+
+  void createPromo(PromoCode p) {
+    promos.insert(0, p);
+    _audit('Created promo code', '${p.code} · ${p.summary}');
+    notifyListeners();
+  }
+
+  void setPromoActive(PromoCode p, bool active) {
+    p.active = active;
+    _audit(active ? 'Activated promo' : 'Paused promo', p.code);
+    notifyListeners();
+  }
 
   // =========================================================== Passenger
   final Map<String, String> _activePassengerRide = {};
@@ -184,11 +328,31 @@ class AppStore extends ChangeNotifier {
     PaymentMethod payment = PaymentMethod.cash,
     ParcelDetails? parcel,
     FreightDetails? freight,
+    DateTime? scheduledAt,
+    int seats = 1,
+    String promo = '',
   }) {
-    if (payment == PaymentMethod.wallet && currentUser!.walletBalance < fare) {
-      return 'Not enough wallet balance (${currentUser!.walletBalance}). Top up or pay cash.';
+    final me = currentUser!;
+    if (me.suspended) return 'Your account is suspended until ${_date(me.suspendedUntil!)}. Contact support.';
+    if (!currentCity.services.contains(service)) return '${service.label} is not available in ${me.city} yet';
+    var discount = 0;
+    String? promoCode;
+    if (promo.trim().isNotEmpty) {
+      final (d, err) = checkPromo(promo, fare);
+      if (err != null) return err;
+      discount = d;
+      promoCode = promo.trim().toUpperCase();
     }
+    if (payment == PaymentMethod.wallet && me.walletBalance < fare - discount) {
+      return 'Not enough wallet balance (${me.walletBalance}). Top up or pay cash.';
+    }
+    if (promoCode != null) promos.firstWhere((p) => p.code == promoCode).used++;
     final req = RideRequest(
+      city: me.city,
+      scheduledAt: scheduledAt,
+      seats: seats,
+      promoCode: promoCode,
+      discount: discount,
       id: _newId('R'),
       passengerId: currentUser!.id,
       service: service,
@@ -214,7 +378,8 @@ class AppStore extends ChangeNotifier {
             u.isBot &&
             u.isApprovedDriver &&
             u.driver!.vehicle.type == req.vehicleType &&
-            u.walletBalance >= minDriverBalance)
+            u.walletBalance >= minDriverBalance &&
+            u.city == req.city)
         .toList()
       ..shuffle(_rand);
     final count = min(drivers.length, 2 + _rand.nextInt(3));
@@ -286,12 +451,14 @@ class AppStore extends ChangeNotifier {
     final time = at ?? DateTime.now();
     req.status = RideStatus.completed;
     req.completedAt = time;
-    req.commission = (req.finalFare * settings.commissionPercent / 100).round();
+    req.commission = (req.finalFare * cityOf(req.city).settings.commissionPercent / 100).round();
     final driverId = req.driverId!;
     if (req.payment == PaymentMethod.wallet) {
-      _tx(req.passengerId, TxType.ridePayment, -req.finalFare, rideId: req.id, time: time);
-      _tx(driverId, TxType.rideEarning, req.finalFare, rideId: req.id, time: time);
+      _tx(req.passengerId, TxType.ridePayment, -req.passengerPays, rideId: req.id, time: time);
+      _tx(driverId, TxType.rideEarning, req.passengerPays, rideId: req.id, time: time);
     }
+    // Promo ka discount Go Ride driver ko deta hai, taake driver ka nuqsan na ho.
+    if (req.discount > 0) _tx(driverId, TxType.promo, req.discount, rideId: req.id, time: time);
     // inDrive ki tarah commission driver ke wallet se kat-ta hai.
     _tx(driverId, TxType.commission, -req.commission, rideId: req.id, time: time);
   }
@@ -334,6 +501,109 @@ class AppStore extends ChangeNotifier {
       d.driverRatingCount++;
     }
     _activePassengerRide.remove(currentUser!.id);
+    notifyListeners();
+  }
+
+  // =========================================================== Safety
+  /// Passenger ya driver SOS dabaye to control office ko foran alert.
+  void raiseSos(RideRequest ride) {
+    final me = currentUser!.id;
+    if (alerts.any((a) => a.rideId == ride.id && !a.resolved)) return;
+    alerts.insert(0, SafetyAlert(id: _newId('A'), rideId: ride.id, userId: me));
+    notifyListeners();
+  }
+
+  int get openAlerts => alerts.where((a) => !a.resolved).length;
+
+  void resolveAlert(SafetyAlert a, String note) {
+    a
+      ..resolved = true
+      ..note = note;
+    _audit('Resolved SOS alert', 'Ride ${a.rideId}: $note');
+    notifyListeners();
+  }
+
+  /// Shak wale accounts: bohat cancel, kam rating, ya minus balance.
+  List<(AppUser, String)> get fraudFlags {
+    final out = <(AppUser, String)>[];
+    for (final u in users.values) {
+      final asDriver = rides.where((r) => r.driverId == u.id).toList();
+      final asPassenger = rides.where((r) => r.passengerId == u.id).toList();
+      final dCancel = asDriver.where((r) => r.cancelledBy == 'driver').length;
+      final pCancel = asPassenger.where((r) => r.cancelledBy == 'passenger').length;
+      if (asDriver.length >= 3 && dCancel / asDriver.length > 0.3) {
+        out.add((u, 'Driver cancels often ($dCancel of ${asDriver.length} rides)'));
+      }
+      if (asPassenger.length >= 3 && pCancel / asPassenger.length > 0.3) {
+        out.add((u, 'Passenger cancels often ($pCancel of ${asPassenger.length} rides)'));
+      }
+      if (u.driver != null && u.driverRatingCount >= 5 && u.driverRating < 4.0) {
+        out.add((u, 'Low driver rating (${u.driverRating.toStringAsFixed(2)})'));
+      }
+      if (u.walletBalance < -500) out.add((u, 'Wallet far below zero (${_pkr(u.walletBalance)})'));
+    }
+    return out;
+  }
+
+  void warnUser(AppUser u, String reason) {
+    u.warnings++;
+    notify(Audience.user, 'Warning from Go Ride', reason, userId: u.id);
+    _audit('Warned user', '${u.name}: $reason');
+    notifyListeners();
+  }
+
+  void suspendUser(AppUser u, int days, String reason) {
+    u.suspendedUntil = DateTime.now().add(Duration(days: days));
+    if (u.driver != null) u.driver!.online = false;
+    notify(Audience.user, 'Account suspended', 'Suspended for $days day(s): $reason', userId: u.id);
+    _audit('Suspended user for $days day(s)', '${u.name}: $reason');
+    notifyListeners();
+  }
+
+  void unsuspendUser(AppUser u) {
+    u.suspendedUntil = null;
+    _audit('Lifted suspension', u.name);
+    notifyListeners();
+  }
+
+  static String _date(DateTime d) => '${d.day}/${d.month}/${d.year}';
+
+  // =========================================================== Notifications
+  void notify(Audience audience, String title, String body, {String? userId}) {
+    notifications.insert(
+        0, AppNotification(id: _newId('N'), audience: audience, userId: userId, title: title, body: body));
+  }
+
+  void broadcast(Audience audience, String title, String body) {
+    notify(audience, title, body);
+    _audit('Sent notification to ${audience.label}', title);
+    notifyListeners();
+  }
+
+  void setBanner(String text, bool active) {
+    bannerText = text;
+    bannerActive = active && text.trim().isNotEmpty;
+    _audit(bannerActive ? 'Updated app banner' : 'Turned off app banner', text);
+    notifyListeners();
+  }
+
+  List<AppNotification> get myNotifications {
+    final u = currentUser;
+    if (u == null) return [];
+    return notifications.where((n) => switch (n.audience) {
+          Audience.everyone => true,
+          Audience.passengers => mode == AppMode.passenger,
+          Audience.drivers => u.driver != null,
+          Audience.user => n.userId == u.id,
+        }).toList();
+  }
+
+  int get unreadNotifications => myNotifications.where((n) => !n.readBy.contains(currentUser!.id)).length;
+
+  void markNotificationsRead() {
+    for (final n in myNotifications) {
+      n.readBy.add(currentUser!.id);
+    }
     notifyListeners();
   }
 
@@ -412,16 +682,69 @@ class AppStore extends ChangeNotifier {
 
   void approveTopUp(WalletTransaction t) {
     _settle(t, TxStatus.success);
+    notify(Audience.user, 'Top-up approved', '${_pkr(t.amount)} added to your wallet.', userId: t.userId);
+    _audit('Approved top-up', '${userById(t.userId).name} · ${_pkr(t.amount)}');
     notifyListeners();
   }
 
   void rejectTopUp(WalletTransaction t) {
     _settle(t, TxStatus.failed);
+    _audit('Rejected top-up', '${userById(t.userId).name} · ${_pkr(t.amount)}');
     notifyListeners();
   }
 
   void adjustBalance(AppUser u, int amount, String note) {
     _tx(u.id, TxType.adjustment, amount, note: note);
+    _audit('Adjusted balance ${amount > 0 ? '+' : ''}$amount', '${u.name}: $note');
+    notifyListeners();
+  }
+
+  /// Driver apni kamai bank / JazzCash mein nikalta hai. Paise foran rok liye jate hain.
+  String? requestWithdrawal(int amount, String method, String account) {
+    final me = currentUser!;
+    if (amount < 500) return 'Minimum withdrawal is Rs 500';
+    if (amount > me.walletBalance) return 'You can withdraw up to ${_pkr(me.walletBalance)}';
+    me.walletBalance -= amount;
+    transactions.insert(
+        0,
+        WalletTransaction(
+          id: _newId('W'),
+          userId: me.id,
+          type: TxType.withdrawal,
+          amount: -amount,
+          method: method,
+          note: account,
+          status: TxStatus.pending,
+        ));
+    notifyListeners();
+    return null;
+  }
+
+  List<WalletTransaction> get pendingWithdrawals =>
+      transactions.where((t) => t.type == TxType.withdrawal && t.status == TxStatus.pending).toList();
+
+  void approveWithdrawal(WalletTransaction t) {
+    if (t.status != TxStatus.pending) return;
+    t.status = TxStatus.success;
+    notify(Audience.user, 'Withdrawal sent', '${_pkr(-t.amount)} sent to your ${t.method}.', userId: t.userId);
+    _audit('Paid withdrawal', '${userById(t.userId).name} · ${_pkr(-t.amount)}');
+    notifyListeners();
+  }
+
+  void rejectWithdrawal(WalletTransaction t) {
+    if (t.status != TxStatus.pending) return;
+    t.status = TxStatus.failed;
+    users[t.userId]!.walletBalance -= t.amount; // paise wapas
+    _audit('Rejected withdrawal', '${userById(t.userId).name} · ${_pkr(-t.amount)}');
+    notifyListeners();
+  }
+
+  void refundRide(RideRequest r, int amount, String reason) {
+    if (r.refunded) return;
+    r.refunded = true;
+    _tx(r.passengerId, TxType.refund, amount, rideId: r.id, note: reason);
+    notify(Audience.user, 'Refund', '${_pkr(amount)} added to your wallet for ride ${r.id}.', userId: r.passengerId);
+    _audit('Refunded ${_pkr(amount)}', 'Ride ${r.id}: $reason');
     notifyListeners();
   }
 
@@ -435,12 +758,14 @@ class AppStore extends ChangeNotifier {
     required String licenseNo,
     required Vehicle vehicle,
     required Set<String> documents,
+    DateTime? licenseExpiry,
   }) {
     currentUser!.driver = DriverProfile(
       cnic: cnic,
       licenseNo: licenseNo,
       vehicle: vehicle,
       documents: documents,
+      licenseExpiry: licenseExpiry,
     );
     notifyListeners();
   }
@@ -455,18 +780,42 @@ class AppStore extends ChangeNotifier {
 
   bool get canGoOnline => (currentUser?.walletBalance ?? 0) >= minDriverBalance;
 
+  /// Driver online kyun nahi ho sakta (null = ho sakta hai).
+  String? get onlineBlocker {
+    final me = currentUser;
+    final d = me?.driver;
+    if (me == null || d == null) return 'Not a driver';
+    if (me.suspended) return 'Your account is suspended until ${_date(me.suspendedUntil!)}';
+    if (d.status != DriverStatus.approved) return 'Your driver account is not approved';
+    if (d.licenseExpired) return 'Your driving license has expired. Upload a new one in support.';
+    if (!canGoOnline) return 'Your wallet balance is below zero. Top up to go online.';
+    if (!d.selfieValid) return 'selfie';
+    return null;
+  }
+
+  /// Roz ek selfie: taake account wahi driver chala raha ho.
+  void takeSelfie() {
+    currentUser!.driver!.lastSelfieAt = DateTime.now();
+    notifyListeners();
+  }
+
+  void setDestination(Place? p) {
+    currentUser!.driver!.destination = p;
+    notifyListeners();
+  }
+
   void setDriverOnline(bool online) {
     final me = currentUser;
     final profile = me?.driver;
     if (profile == null) return;
-    profile.online = online && profile.status == DriverStatus.approved && canGoOnline;
-    profile.location = profile.online ? _randomPointNear(cityCenter) : null;
+    profile.online = online && onlineBlocker == null;
+    profile.location = profile.online ? _randomPointNear(cityOf(me!.city).center) : null;
     _requestFeed?.cancel();
     if (profile.online) {
       final type = profile.vehicle.type;
       if (openRequests.length < 3) {
         for (var i = 0; i < 3; i++) {
-          _botPassengerRequest(type);
+          _botPassengerRequest(type, me!.city);
         }
       }
       _requestFeed = Timer.periodic(const Duration(seconds: 8), (_) {
@@ -478,7 +827,7 @@ class AppStore extends ChangeNotifier {
             r.createdAt.isBefore(cutoff) &&
             r.offers.isEmpty &&
             userById(r.passengerId).isBot);
-        _botPassengerRequest(type);
+        _botPassengerRequest(type, me!.city);
         notifyListeners();
       });
     }
@@ -489,12 +838,16 @@ class AppStore extends ChangeNotifier {
     final me = currentUser;
     final type = me?.driver?.vehicle.type;
     if (me == null || type == null) return [];
+    final dest = me.driver!.destination;
     return rides
         .where((r) =>
             r.status == RideStatus.searching &&
             r.vehicleType == type &&
+            r.city == me.city &&
             r.passengerId != me.id &&
-            !r.declinedDriverIds.contains(me.id))
+            !r.declinedDriverIds.contains(me.id) &&
+            // Destination mode: sirf woh rides jo driver ki manzil ke 5 km andar khatam hon.
+            (dest == null || const Distance().as(LengthUnit.Kilometer, r.to.point, dest.point) <= 5))
         .take(8)
         .toList();
   }
@@ -536,6 +889,7 @@ class AppStore extends ChangeNotifier {
     final r = driverRide;
     if (r == null) return;
     _completeRide(r);
+    _payIncentives(currentUser!);
     final passenger = userById(r.passengerId);
     if (passenger.isBot) {
       // Demo passenger driver ko khud rating deta hai.
@@ -591,6 +945,41 @@ class AppStore extends ChangeNotifier {
   int get todayGross => _myDriverRidesToday().fold(0, (s, r) => s + r.finalFare);
   int get todayCommission => _myDriverRidesToday().fold(0, (s, r) => s + r.commission);
 
+  // =========================================================== Driver bonus
+  List<Incentive> incentivesFor(AppUser u) => incentives
+      .where((i) =>
+          i.validUntil.isAfter(DateTime.now()) &&
+          (i.vehicleType == null || i.vehicleType == u.driver?.vehicle.type))
+      .toList();
+
+  int incentiveProgress(Incentive i, AppUser u) {
+    final since = DateTime.now().subtract(const Duration(hours: 24));
+    return rides
+        .where((r) =>
+            r.driverId == u.id &&
+            r.status == RideStatus.completed &&
+            r.completedAt!.isAfter(since) &&
+            (i.vehicleType == null || r.vehicleType == i.vehicleType))
+        .length;
+  }
+
+  void _payIncentives(AppUser u) {
+    for (final i in incentivesFor(u)) {
+      if (!i.paidTo.contains(u.id) && incentiveProgress(i, u) >= i.targetRides) {
+        i.paidTo.add(u.id);
+        _tx(u.id, TxType.bonus, i.reward, note: i.title);
+        notify(Audience.user, 'Bonus earned!', '${i.title}: ${_pkr(i.reward)} added to your wallet.', userId: u.id);
+      }
+    }
+  }
+
+  void createIncentive(Incentive i) {
+    incentives.insert(0, i);
+    notify(Audience.drivers, 'New bonus', '${i.title}: complete ${i.targetRides} rides, earn ${_pkr(i.reward)}');
+    _audit('Created driver bonus', '${i.title} · ${_pkr(i.reward)}');
+    notifyListeners();
+  }
+
   // =========================================================== History
   List<RideRequest> historyFor(String userId) => rides
       .where((r) =>
@@ -636,17 +1025,29 @@ class AppStore extends ChangeNotifier {
   void adminReplyTicket(SupportTicket t, String text) {
     t.messages.add(TicketMessage(fromSupport: true, text: text));
     t.status = TicketStatus.answered;
+    t.assignedTo ??= currentStaff?.name;
+    _audit('Replied to ticket', t.id);
     notifyListeners();
   }
 
   void closeTicket(SupportTicket t) {
     t.status = TicketStatus.closed;
+    _audit('Closed ticket', t.id);
+    notifyListeners();
+  }
+
+  void assignTicket(SupportTicket t, String? staffName) {
+    t.assignedTo = staffName;
+    _audit('Assigned ticket', '${t.id} → ${staffName ?? 'nobody'}');
     notifyListeners();
   }
 
   void approveDriver(AppUser u) {
     u.driver!.status = DriverStatus.approved;
     u.driver!.rejectionReason = null;
+    notify(Audience.user, 'You are approved!', 'Your driver account is approved. Go online to start earning.',
+        userId: u.id);
+    _audit('Approved driver', u.name);
     notifyListeners();
   }
 
@@ -655,6 +1056,8 @@ class AppStore extends ChangeNotifier {
       ..status = DriverStatus.rejected
       ..rejectionReason = reason
       ..online = false;
+    notify(Audience.user, 'Application not approved', reason, userId: u.id);
+    _audit('Rejected driver', '${u.name}: $reason');
     notifyListeners();
   }
 
@@ -662,12 +1065,14 @@ class AppStore extends ChangeNotifier {
     u.driver!
       ..status = blocked ? DriverStatus.blocked : DriverStatus.approved
       ..online = false;
+    _audit(blocked ? 'Blocked driver' : 'Unblocked driver', u.name);
     notifyListeners();
   }
 
   void setUserBlocked(AppUser u, bool blocked) {
     u.blocked = blocked;
     if (blocked && u.driver != null) u.driver!.online = false;
+    _audit(blocked ? 'Blocked account' : 'Unblocked account', u.name);
     notifyListeners();
   }
 
@@ -676,11 +1081,20 @@ class AppStore extends ChangeNotifier {
     r.status = RideStatus.cancelled;
     r.cancelledBy = 'admin';
     r.cancelReason = 'Cancelled by Go Ride support';
+    _audit('Cancelled ride', r.id);
     notifyListeners();
   }
 
-  void updateSettings(FareSettings s) {
-    settings = s;
+  void updateSettings(FareSettings s, {String city = 'Lahore', int? airportFee, Set<ServiceType>? services}) {
+    final c = cityOf(city);
+    c.settings = s;
+    if (airportFee != null) c.airportFee = airportFee;
+    if (services != null) {
+      c.services
+        ..clear()
+        ..addAll(services);
+    }
+    _audit('Updated fares and settings', city);
     notifyListeners();
   }
 
@@ -733,28 +1147,41 @@ class AppStore extends ChangeNotifier {
       isBot: true,
       createdAt: createdAt,
     );
-    users[u.id] = u;
+    _addUser(u);
     return u;
   }
 
-  void _botPassengerRequest(VehicleType type) {
+  void _botPassengerRequest(VehicleType type, [String city = 'Lahore']) {
     final passengers = users.values.where((u) => u.isBot && u.driver == null).toList();
     final p = passengers[_rand.nextInt(passengers.length)];
-    final from = places[_rand.nextInt(places.length)];
+    final c = cityOf(city);
+    final from = c.places[_rand.nextInt(c.places.length)];
+    var (service, parcel, freight) = _randomService(type);
+    // Kabhi kabhi doosre sheher ki (intercity) request, kal ke liye.
+    final intercity = (type == VehicleType.mini || type == VehicleType.ac) && _rand.nextDouble() < 0.12;
     Place to;
-    do {
-      to = places[_rand.nextInt(places.length)];
-    } while (to == from);
-    final (service, parcel, freight) = _randomService(type);
-    final suggested = suggestedFare(type, from, to, parcel: parcel, freight: freight);
+    if (intercity) {
+      service = ServiceType.intercity;
+      final others = intercityDestinations(city);
+      to = others[_rand.nextInt(others.length)];
+    } else {
+      do {
+        to = c.places[_rand.nextInt(c.places.length)];
+      } while (to == from);
+    }
+    final suggested = suggestedFare(type, from, to, parcel: parcel, freight: freight, city: city, service: service);
     // Passenger aksar mashwara kiraye se thora kam offer karta hai.
-    final fare = max(lowestAllowedFare(type, from, to, parcel: parcel, freight: freight),
+    final fare = max(lowestAllowedFare(type, from, to, parcel: parcel, freight: freight, city: city, service: service),
         suggested - [0, 20, 50, 80][_rand.nextInt(4)]);
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
     rides.insert(
       0,
       RideRequest(
         id: _newId('R'),
         passengerId: p.id,
+        city: city,
+        scheduledAt: intercity ? DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 7 + _rand.nextInt(10)) : null,
+        seats: intercity ? 1 + _rand.nextInt(3) : 1,
         service: service,
         vehicleType: type,
         parcel: parcel,
@@ -839,6 +1266,8 @@ class AppStore extends ChangeNotifier {
           documents: driverDocuments.toSet(),
           status: DriverStatus.approved,
           submittedAt: u.createdAt,
+          // Kuch licenses jald expire hone wale, ek expire ho chuka.
+          licenseExpiry: now.add(Duration(days: i == 0 ? 12 : (i == 1 && t == VehicleType.mini ? -3 : 200 + _rand.nextInt(600)))),
         )
           ..online = _rand.nextDouble() < 0.7
           ..location = _randomPointNear(cityCenter);
@@ -914,7 +1343,7 @@ class AppStore extends ChangeNotifier {
       email: 'passenger@goride.demo',
       createdAt: now.subtract(const Duration(days: 30)),
     );
-    users[demoPassenger.id] = demoPassenger;
+    _addUser(demoPassenger);
     final demoDriver = AppUser(
       id: _newId('U'),
       phone: demoDriverPhone,
@@ -929,8 +1358,9 @@ class AppStore extends ChangeNotifier {
         documents: driverDocuments.toSet(),
         status: DriverStatus.approved,
         submittedAt: now.subtract(const Duration(days: 60)),
+        licenseExpiry: now.add(const Duration(days: 400)),
       );
-    users[demoDriver.id] = demoDriver;
+    _addUser(demoDriver);
     _tx(demoPassenger.id, TxType.topUp, 1000, method: 'JazzCash', time: now.subtract(const Duration(days: 2)));
     _tx(demoDriver.id, TxType.topUp, 500, method: 'Easypaisa', time: now.subtract(const Duration(days: 1)));
 
@@ -962,6 +1392,109 @@ class AppStore extends ChangeNotifier {
       t.messages.add(TicketMessage(fromSupport: false, text: msg, time: t.createdAt));
       tickets.add(t);
     }
+    tickets[1].assignedTo = staff[1].name;
+    tickets.add(SupportTicket(
+      id: _newId('T'),
+      userId: demoPassenger.id,
+      role: AppMode.passenger,
+      category: 'Lost item',
+      rideId: null,
+      createdAt: now.subtract(const Duration(hours: 5)),
+    )..messages.add(TicketMessage(
+        fromSupport: false,
+        text: 'I forgot my umbrella in a Suzuki Alto yesterday evening.',
+        time: now.subtract(const Duration(hours: 5)))));
+
+    // Promo codes, bonus, notifications, banner
+    promos.addAll([
+      PromoCode(code: 'WELCOME50', percent: 50, maxDiscount: 150, maxUses: 1000, expires: now.add(const Duration(days: 30)))
+        ..used = 214,
+      PromoCode(code: 'GORIDE100', fixed: 100, maxUses: 500, expires: now.add(const Duration(days: 7)))..used = 88,
+      PromoCode(code: 'EID2026', percent: 20, maxDiscount: 200, maxUses: 300, expires: now.subtract(const Duration(days: 3)))
+        ..used = 300,
+    ]);
+    incentives.addAll([
+      Incentive(
+          id: _newId('I'),
+          title: 'Complete 3 rides today',
+          targetRides: 3,
+          reward: 300,
+          validUntil: now.add(const Duration(hours: 12))),
+      Incentive(
+          id: _newId('I'),
+          title: 'Freight weekend: 2 deliveries',
+          vehicleType: VehicleType.pickup,
+          targetRides: 2,
+          reward: 800,
+          validUntil: now.add(const Duration(days: 2))),
+    ]);
+    bannerText = 'Use code WELCOME50 for 50% off your next ride (up to Rs 150)';
+    bannerActive = true;
+    notifications.addAll([
+      AppNotification(
+          id: _newId('N'),
+          audience: Audience.everyone,
+          title: 'Welcome to Go Ride',
+          body: 'Ride, courier, freight and intercity: all in one app. Offer your own fare!',
+          time: now.subtract(const Duration(days: 1))),
+      AppNotification(
+          id: _newId('N'),
+          audience: Audience.drivers,
+          title: 'New bonus',
+          body: 'Complete 3 rides today and earn Rs 300.',
+          time: now.subtract(const Duration(hours: 3))),
+    ]);
+
+    // Ek khula SOS alert, aur purana hal shuda
+    final someRide = rides.firstWhere((r) => r.status == RideStatus.completed);
+    alerts.addAll([
+      SafetyAlert(id: _newId('A'), rideId: someRide.id, userId: someRide.passengerId, time: now.subtract(const Duration(minutes: 8))),
+      SafetyAlert(id: _newId('A'), rideId: rides[5].id, userId: rides[5].passengerId, time: now.subtract(const Duration(days: 1)))
+        ..resolved = true
+        ..note = 'Called passenger, false alarm',
+    ]);
+
+    // Driver withdrawals jo finance ke intezar mein hain
+    for (final d in drivers.skip(3).take(2)) {
+      d.walletBalance -= 1500;
+      transactions.insert(
+          0,
+          WalletTransaction(
+              id: _newId('W'),
+              userId: d.id,
+              type: TxType.withdrawal,
+              amount: -1500,
+              method: 'JazzCash',
+              note: '••••${1000 + _rand.nextInt(8999)}',
+              status: TxStatus.pending,
+              time: now.subtract(Duration(hours: 2 + _rand.nextInt(6)))));
+    }
+
+    // Ek driver jo bohat cancel karta hai (fraud flag ke liye)
+    final flaky = drivers[2];
+    for (var i = 0; i < 4; i++) {
+      final r = RideRequest(
+        id: _newId('R'),
+        passengerId: passengers[i].id,
+        vehicleType: flaky.driver!.vehicle.type,
+        from: places[i],
+        to: places[i + 4],
+        fare: 300,
+        createdAt: now.subtract(Duration(hours: 3 + i)),
+      )
+        ..acceptedOffer = Offer(id: _newId('O'), driverId: flaky.id, fare: 300, etaMinutes: 5)
+        ..status = RideStatus.cancelled
+        ..cancelledBy = 'driver'
+        ..cancelReason = 'Pickup is too far';
+      rides.add(r);
+    }
+    rides.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    auditLog.addAll([
+      AuditEntry(staff[2].name, 'Approved driver', drivers[0].name, time: now.subtract(const Duration(hours: 6))),
+      AuditEntry(staff[3].name, 'Approved top-up', '${drivers[1].name} · Rs 2000', time: now.subtract(const Duration(hours: 9))),
+      AuditEntry(staff[0].name, 'Created promo code', 'GORIDE100 · Rs 100 off', time: now.subtract(const Duration(days: 1))),
+    ]);
   }
 
   @override

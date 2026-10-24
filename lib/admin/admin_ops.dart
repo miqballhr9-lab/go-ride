@@ -146,6 +146,11 @@ void showRideDetails(BuildContext context, RideRequest r) {
             if (r.status == RideStatus.completed) _line('Commission', pkr(r.commission)),
             _line('Requested', '${hhmm(r.createdAt)} (${timeAgo(r.createdAt)})'),
             if (r.completedAt != null) _line('Completed', hhmm(r.completedAt!)),
+            _line('City', r.city),
+            if (r.scheduledAt != null) _line('Scheduled for', '${r.scheduledAt!.day}/${r.scheduledAt!.month} ${hhmm(r.scheduledAt!)}'),
+            if (r.service == ServiceType.intercity) _line('Seats', '${r.seats}'),
+            if (r.promoCode != null) _line('Promo', '${r.promoCode} · −${pkr(r.discount)} (passenger paid ${pkr(r.passengerPays)})'),
+            if (r.refunded) _line('Refund', 'Refunded to passenger wallet'),
             if (r.cancelReason != null) _line('Cancelled', 'by ${r.cancelledBy}: ${r.cancelReason}'),
             if (r.driverRatingGiven != null)
               _line('Driver review', '★ ${r.driverRatingGiven}${r.driverReview.isEmpty ? '' : ' · ${r.driverReview}'}'),
@@ -163,6 +168,22 @@ void showRideDetails(BuildContext context, RideRequest r) {
         ),
       ),
       actions: [
+        if (r.status == RideStatus.completed && !r.refunded)
+          TextButton(
+            onPressed: () async {
+              final reason = await pickReason(ctx, 'Refund ${pkr(r.passengerPays)} to passenger wallet?', const [
+                'Driver took a longer route',
+                'Driver asked for extra money',
+                'Ride did not happen',
+                'Goodwill',
+              ]);
+              if (reason != null) {
+                store.refundRide(r, r.passengerPays, reason);
+                if (ctx.mounted) Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Refund'),
+          ),
         if (r.status.isActive)
           TextButton(
             onPressed: () {
@@ -231,6 +252,36 @@ class AdminPayments extends StatelessWidget {
                       style: FilledButton.styleFrom(minimumSize: const Size(0, 36)),
                       onPressed: () => store.approveTopUp(t),
                       child: const Text('Approve'),
+                    ),
+                  ]),
+                ),
+            ]),
+          ),
+        const SizedBox(height: 20),
+        Text('Driver withdrawals (${store.pendingWithdrawals.length})',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        const SizedBox(height: 8),
+        if (store.pendingWithdrawals.isEmpty)
+          const Text('No withdrawal requests', style: TextStyle(color: AppColors.muted))
+        else
+          AdminCard(
+            padding: EdgeInsets.zero,
+            child: Column(children: [
+              for (final t in store.pendingWithdrawals)
+                ListTile(
+                  title: Text('${store.userById(t.userId).name} · ${pkr(-t.amount)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text('${t.method} ${t.note} · ${timeAgo(t.time)}'),
+                  trailing: Wrap(spacing: 8, children: [
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36), foregroundColor: AppColors.danger),
+                      onPressed: () => store.rejectWithdrawal(t),
+                      child: const Text('Reject'),
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(minimumSize: const Size(0, 36)),
+                      onPressed: () => store.approveWithdrawal(t),
+                      child: const Text('Mark paid'),
                     ),
                   ]),
                 ),
@@ -328,11 +379,16 @@ class AdminSupport extends StatefulWidget {
 
 class _AdminSupportState extends State<AdminSupport> {
   TicketStatus filter = TicketStatus.open;
+  bool mine = false;
 
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
-    final list = store.tickets.where((t) => t.status == filter).toList();
+    final me = store.currentStaff!.name;
+    final list = store.tickets
+        .where((t) => t.status == filter && (!mine || t.assignedTo == me))
+        .toList()
+      ..sort((a, b) => (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0));
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -343,6 +399,7 @@ class _AdminSupportState extends State<AdminSupport> {
               selected: filter == s,
               onSelected: (_) => setState(() => filter = s),
             ),
+          FilterChip(label: const Text('Assigned to me'), selected: mine, onSelected: (v) => setState(() => mine = v)),
         ]),
         const SizedBox(height: 12),
         if (list.isEmpty)
@@ -360,7 +417,17 @@ class _AdminSupportState extends State<AdminSupport> {
                   title: Text('${t.category} · ${store.userById(t.userId).name}',
                       style: const TextStyle(fontWeight: FontWeight.w700)),
                   subtitle: Text(t.messages.last.text, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  trailing: Text(timeAgo(t.createdAt), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (t.overdue)
+                        const StatusChip('Overdue', AppColors.danger)
+                      else
+                        Text(timeAgo(t.createdAt), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                      Text(t.assignedTo ?? 'Unassigned', style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                    ],
+                  ),
                   onTap: () => Navigator.push(
                       context, MaterialPageRoute(builder: (_) => AdminTicketScreen(ticket: t))),
                 ),
@@ -426,6 +493,18 @@ class _AdminTicketScreenState extends State<AdminTicketScreen> {
                 ]),
               ),
               StatusChip(t.status.label, ticketColor(t.status)),
+              const SizedBox(width: 8),
+              DropdownButton<String?>(
+                value: t.assignedTo,
+                hint: const Text('Assign'),
+                underline: const SizedBox.shrink(),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('Unassigned')),
+                  for (final a in store.staff.where((a) => a.role == AdminRole.support || a.role == AdminRole.superAdmin))
+                    DropdownMenuItem(value: a.name, child: Text(a.name)),
+                ],
+                onChanged: (v) => store.assignTicket(t, v),
+              ),
               if (ride != null) ...[
                 const SizedBox(width: 8),
                 OutlinedButton(
@@ -495,22 +574,31 @@ class AdminSettings extends StatefulWidget {
 
 class _AdminSettingsState extends State<AdminSettings> {
   final Map<String, TextEditingController> c = {};
+  String city = 'Lahore';
+  Set<ServiceType> services = {};
   bool _init = false;
 
-  TextEditingController _ctrl(String key, int value) =>
-      c.putIfAbsent(key, () => TextEditingController(text: '$value'));
+  TextEditingController _ctrl(String key) => c.putIfAbsent(key, TextEditingController.new);
+
+  /// Chune hue sheher ki settings form mein bharo.
+  void _load() {
+    final cd = StoreScope.of(context).cityOf(city);
+    final s = cd.settings;
+    for (final t in VehicleType.values) {
+      _ctrl('base-${t.name}').text = '${s.baseFare[t]}';
+      _ctrl('km-${t.name}').text = '${s.perKm[t]}';
+      _ctrl('min-${t.name}').text = '${s.minFare[t]}';
+    }
+    _ctrl('commission').text = '${s.commissionPercent}';
+    _ctrl('airport').text = '${cd.airportFee}';
+    services = {...cd.services};
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_init) return;
-    final s = StoreScope.of(context).settings;
-    for (final t in VehicleType.values) {
-      _ctrl('base-${t.name}', s.baseFare[t]!);
-      _ctrl('km-${t.name}', s.perKm[t]!);
-      _ctrl('min-${t.name}', s.minFare[t]!);
-    }
-    _ctrl('commission', s.commissionPercent);
+    _load();
     _init = true;
   }
 
@@ -527,8 +615,13 @@ class _AdminSettingsState extends State<AdminSettings> {
   void _save() {
     final store = StoreScope.of(context);
     final commission = _v('commission');
+    final airport = _v('airport');
     if (commission == null || commission < 0 || commission > 50) {
       showSnack(context, 'Commission must be between 0 and 50%');
+      return;
+    }
+    if (airport == null || airport < 0) {
+      showSnack(context, 'Enter a valid airport fee');
       return;
     }
     final base = <VehicleType, int>{}, km = <VehicleType, int>{}, min = <VehicleType, int>{};
@@ -542,27 +635,61 @@ class _AdminSettingsState extends State<AdminSettings> {
       km[t] = k;
       min[t] = m;
     }
-    store.updateSettings(FareSettings(baseFare: base, perKm: km, minFare: min, commissionPercent: commission));
-    showSnack(context, 'Settings saved. New ride requests use these fares.');
+    store.updateSettings(
+      FareSettings(baseFare: base, perKm: km, minFare: min, commissionPercent: commission),
+      city: city,
+      airportFee: airport,
+      services: services,
+    );
+    showSnack(context, '$city settings saved. New requests use these fares.');
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget field(String key, String label) => SizedBox(
+    final store = StoreScope.of(context);
+    Widget field(String key, String label, {String? prefix = 'Rs ', String? suffix}) => SizedBox(
           width: 150,
           child: TextField(
             controller: c[key],
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: label, prefixText: key == 'commission' ? null : 'Rs '),
+            decoration: InputDecoration(labelText: label, prefixText: prefix, suffixText: suffix),
           ),
         );
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final name in store.cityData.keys)
+            ChoiceChip(
+              label: Text(name),
+              selected: city == name,
+              onSelected: (_) => setState(() {
+                city = name;
+                _load();
+              }),
+            ),
+        ]),
+        const SizedBox(height: 12),
         const Text('Recommended fare = base fare + (km × per km), never below the minimum. '
-            'Passengers can offer down to 70% of the recommended fare.',
+            'Intercity uses 60% of the per km rate. Passengers can offer down to 70% of the recommended fare.',
             style: TextStyle(color: AppColors.muted)),
         const SizedBox(height: 16),
+        AdminCard(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Services in $city', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final sv in ServiceType.values)
+                FilterChip(
+                  avatar: Icon(serviceIcon(sv), size: 16),
+                  label: Text(sv.label),
+                  selected: services.contains(sv),
+                  onSelected: (on) => setState(() => on ? services.add(sv) : services.remove(sv)),
+                ),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 12),
         for (final t in VehicleType.values) ...[
           AdminCard(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -579,19 +706,16 @@ class _AdminSettingsState extends State<AdminSettings> {
         ],
         AdminCard(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Commission', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const Text('Commission and zones', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             const SizedBox(height: 4),
-            const Text('Percentage of each completed ride that drivers pay to Go Ride.',
+            const Text('Commission is the share of each completed ride drivers pay to Go Ride. '
+                'The airport fee is added when a trip starts or ends at the airport.',
                 style: TextStyle(color: AppColors.muted)),
             const SizedBox(height: 12),
-            SizedBox(
-              width: 150,
-              child: TextField(
-                controller: c['commission'],
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Commission', suffixText: '%'),
-              ),
-            ),
+            Wrap(spacing: 12, runSpacing: 12, children: [
+              field('commission', 'Commission', prefix: null, suffix: '%'),
+              field('airport', 'Airport fee'),
+            ]),
           ]),
         ),
         const SizedBox(height: 16),
@@ -600,7 +724,7 @@ class _AdminSettingsState extends State<AdminSettings> {
           child: FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(200, 52)),
             onPressed: _save,
-            child: const Text('Save settings'),
+            child: Text('Save $city settings'),
           ),
         ),
       ],

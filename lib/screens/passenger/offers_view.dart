@@ -36,6 +36,20 @@ class OffersView extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               RouteLines(from: ride.from, to: ride.to),
               ServiceInfo(ride: ride),
+              if (ride.scheduledAt != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                      '${ride.service == ServiceType.intercity ? 'Departure' : 'Pickup'}: ${ride.scheduledAt!.day}/${ride.scheduledAt!.month} at ${hhmm(ride.scheduledAt!)}'
+                      '${ride.service == ServiceType.intercity ? ' · ${ride.seats} passenger${ride.seats > 1 ? 's' : ''}' : ''}',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              if (ride.discount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('Promo ${ride.promoCode}: you save ${pkr(ride.discount)}',
+                      style: TextStyle(color: Colors.green.shade700)),
+                ),
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(

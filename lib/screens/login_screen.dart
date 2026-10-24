@@ -20,13 +20,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final otpCtrl = TextEditingController();
   final nameCtrl = TextEditingController();
   final emailCtrl = TextEditingController();
+  final referralCtrl = TextEditingController();
   String city = AppStore.cities.first;
   bool acceptedTerms = false;
   String? error;
 
   @override
   void dispose() {
-    for (final c in [phoneCtrl, otpCtrl, nameCtrl, emailCtrl]) {
+    for (final c in [phoneCtrl, otpCtrl, nameCtrl, emailCtrl, referralCtrl]) {
       c.dispose();
     }
     super.dispose();
@@ -73,7 +74,9 @@ class _LoginScreenState extends State<LoginScreen> {
           setState(() => error = 'Please accept the terms to continue');
           return;
         }
-        store.signup(phone: _phone, name: nameCtrl.text.trim(), email: email, city: city);
+        final err = store.signup(
+            phone: _phone, name: nameCtrl.text.trim(), email: email, city: city, referral: referralCtrl.text);
+        if (err != null) setState(() => error = err);
     }
   }
 
@@ -230,6 +233,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 for (final c in AppStore.cities) DropdownMenuItem(value: c, child: Text(c)),
               ],
               onChanged: (v) => setState(() => city = v!),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: referralCtrl,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Referral code (optional)',
+                helperText: 'Got a code from a friend? You both get Rs ${AppStore.referralBonus}',
+              ),
             ),
             const SizedBox(height: 8),
             CheckboxListTile(

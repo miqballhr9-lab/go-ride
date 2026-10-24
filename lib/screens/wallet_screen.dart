@@ -40,11 +40,31 @@ class WalletScreen extends StatelessWidget {
                 style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopUpScreen())),
-                icon: const Icon(Icons.add),
-                label: const Text('Top up'),
-              ),
+              Row(children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopUpScreen())),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Top up'),
+                  ),
+                ),
+                if (isDriver) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white38),
+                        minimumSize: const Size.fromHeight(54),
+                      ),
+                      onPressed: () =>
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const WithdrawScreen())),
+                      icon: const Icon(Icons.account_balance_outlined),
+                      label: const Text('Withdraw'),
+                    ),
+                  ),
+                ],
+              ]),
             ]),
           ),
           if (low) ...[
@@ -102,6 +122,11 @@ class TransactionTile extends StatelessWidget {
             TxType.ridePayment => Icons.directions_car_outlined,
             TxType.rideEarning => Icons.payments_outlined,
             TxType.adjustment => Icons.tune,
+            TxType.promo => Icons.local_offer_outlined,
+            TxType.referral => Icons.card_giftcard,
+            TxType.bonus => Icons.emoji_events_outlined,
+            TxType.withdrawal => Icons.account_balance_outlined,
+            TxType.refund => Icons.undo,
           },
           color: AppColors.dark,
         ),
@@ -250,6 +275,105 @@ class _TopUpScreenState extends State<TopUpScreen> {
           const SizedBox(height: 24),
           FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Back to wallet')),
         ]),
+      ),
+    );
+  }
+}
+
+
+/// Driver apni kamai JazzCash / Easypaisa / bank mein nikalta hai. Finance team approve karti hai.
+class WithdrawScreen extends StatefulWidget {
+  const WithdrawScreen({super.key});
+
+  @override
+  State<WithdrawScreen> createState() => _WithdrawScreenState();
+}
+
+class _WithdrawScreenState extends State<WithdrawScreen> {
+  final amount = TextEditingController();
+  final account = TextEditingController();
+  String method = 'JazzCash';
+  String? error;
+  bool done = false;
+
+  @override
+  void dispose() {
+    amount.dispose();
+    account.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = StoreScope.of(context);
+    final balance = store.currentUser!.walletBalance;
+    if (done) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Withdraw')),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Icon(Icons.schedule, size: 72, color: Colors.orange.shade800),
+            const SizedBox(height: 16),
+            const Text('Request sent',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Text('Our finance team usually sends the money within 24 hours.',
+                textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+            const SizedBox(height: 24),
+            FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Back to wallet')),
+          ]),
+        ),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('Withdraw')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Available: ${pkr(balance)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: amount,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Amount', prefixText: 'Rs  ', helperText: 'Minimum Rs 500'),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: method,
+            decoration: const InputDecoration(labelText: 'Send to'),
+            items: [
+              for (final m in ['JazzCash', 'Easypaisa', 'Bank account']) DropdownMenuItem(value: m, child: Text(m)),
+            ],
+            onChanged: (v) => setState(() => method = v!),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: account,
+            decoration: InputDecoration(labelText: method == 'Bank account' ? 'IBAN' : '$method number'),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text(error!, style: const TextStyle(color: AppColors.danger)),
+          ],
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: () {
+              final a = int.tryParse(amount.text.trim());
+              final acc = account.text.trim();
+              if (a == null || acc.length < 4) {
+                setState(() => error = 'Enter an amount and your account details');
+                return;
+              }
+              final err = store.requestWithdrawal(a, method, '••••${acc.substring(acc.length - 4)}');
+              setState(() {
+                error = err;
+                done = err == null;
+              });
+            },
+            child: const Text('Request withdrawal'),
+          ),
+        ],
       ),
     );
   }

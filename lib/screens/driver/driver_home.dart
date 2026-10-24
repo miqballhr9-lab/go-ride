@@ -31,6 +31,7 @@ class DriverHome extends StatelessWidget {
         leading: BackMenuLeading(onBack: StoreScope.of(context).goBack),
         title: const Text('Driver mode', style: TextStyle(fontWeight: FontWeight.w800)),
         actions: [
+          const NotificationBell(),
           Text(store.driverOnline ? 'Online' : 'Offline',
               style: TextStyle(
                   fontWeight: FontWeight.w700,
@@ -38,9 +39,15 @@ class DriverHome extends StatelessWidget {
           Switch(
             value: store.driverOnline,
             activeTrackColor: AppColors.brand,
-            onChanged: (v) {
-              if (v && !store.canGoOnline) {
-                showSnack(context, 'Your wallet balance is below zero. Top up to go online.');
+            onChanged: (v) async {
+              final blocker = store.onlineBlocker;
+              if (v && blocker == 'selfie') {
+                // Roz ek selfie, taake account wahi driver chalaye.
+                final ok = await showSelfieCheck(context);
+                if (!ok) return;
+                store.takeSelfie();
+              } else if (v && blocker != null) {
+                showSnack(context, blocker);
                 return;
               }
               store.setDriverOnline(v);
@@ -83,13 +90,32 @@ class DriverHome extends StatelessWidget {
               ),
             ]),
           ),
+        if (profile.licenseExpired || profile.licenseExpiringSoon)
+          _Banner(
+            profile.licenseExpired
+                ? 'Your driving license expired on ${_d(profile.licenseExpiry)}. Send a new photo to support.'
+                : 'Your driving license expires on ${_d(profile.licenseExpiry)}. Renew it soon.',
+          ),
+        for (final i in store.incentivesFor(user)) _IncentiveCard(incentive: i),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(children: [
             Text('${profile.vehicle.type.label} requests',
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             const Spacer(),
-            Text(profile.vehicle.plate, style: const TextStyle(color: AppColors.muted)),
+            ActionChip(
+              avatar: Icon(profile.destination == null ? Icons.flag_outlined : Icons.flag, size: 18),
+              label: Text(profile.destination == null ? 'Destination' : 'To ${profile.destination!.name}',
+                  overflow: TextOverflow.ellipsis),
+              onPressed: () async {
+                if (profile.destination != null) {
+                  store.setDestination(null);
+                  return;
+                }
+                final p = await pickPlace(context, 'Only get rides going to…');
+                if (p != null) store.setDestination(p);
+              },
+            ),
           ]),
         ),
         const SizedBox(height: 8),
@@ -234,6 +260,9 @@ class _RequestCard extends StatelessWidget {
             const SizedBox(height: 8),
             Wrap(spacing: 6, children: [
               StatusChip(req.service.label, AppColors.dark),
+              if (req.scheduledAt != null)
+                StatusChip('${req.scheduledAt!.day}/${req.scheduledAt!.month} ${hhmm(req.scheduledAt!)}', Colors.blue.shade700),
+              if (req.service == ServiceType.intercity) StatusChip('${req.seats} seat${req.seats > 1 ? 's' : ''}', AppColors.dark),
               if (req.payment == PaymentMethod.wallet) StatusChip('Wallet', Colors.green.shade700),
             ]),
             const SizedBox(height: 8),
@@ -308,4 +337,98 @@ void _openOfferSheet(BuildContext context, RideRequest req) {
       );
     },
   );
+}
+
+String _d(DateTime t) => '${t.day}/${t.month}/${t.year}';
+
+class _Banner extends StatelessWidget {
+  final String text;
+  const _Banner(this.text);
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(color: Colors.orange.shade900))),
+        ]),
+      );
+}
+
+class _IncentiveCard extends StatelessWidget {
+  final Incentive incentive;
+  const _IncentiveCard({required this.incentive});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = StoreScope.of(context);
+    final me = store.currentUser!;
+    final done = store.incentiveProgress(incentive, me).clamp(0, incentive.targetRides);
+    final paid = incentive.paidTo.contains(me.id);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.brand.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.emoji_events_outlined, size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text(incentive.title, style: const TextStyle(fontWeight: FontWeight.w700))),
+          Text(paid ? 'Earned ${pkr(incentive.reward)}' : '+${pkr(incentive.reward)}',
+              style: const TextStyle(fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: done / incentive.targetRides,
+            minHeight: 6,
+            color: AppColors.dark,
+            backgroundColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text('$done of ${incentive.targetRides} rides', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+      ]),
+    );
+  }
+}
+
+/// Selfie se chehre ki tasdeeq. Demo mein camera ki jagah button.
+Future<bool> showSelfieCheck(BuildContext context) async {
+  final ok = await showModalBottomSheet<bool>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const CircleAvatar(radius: 48, backgroundColor: AppColors.surface, child: Icon(Icons.face, size: 56)),
+          const SizedBox(height: 16),
+          const Text('Quick selfie check',
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          const Text('Once a day we check that the registered driver is using the account. '
+              'Look at the camera in good light.',
+              textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.camera_alt_outlined),
+            label: const Text('Take selfie'),
+          ),
+          const SizedBox(height: 6),
+          const Text('Demo: no photo is taken.',
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.muted)),
+        ]),
+      ),
+    ),
+  );
+  return ok ?? false;
 }

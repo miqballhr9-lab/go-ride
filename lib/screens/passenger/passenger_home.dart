@@ -19,8 +19,15 @@ class PassengerHome extends StatefulWidget {
 
 class _PassengerHomeState extends State<PassengerHome> {
   ServiceType service = ServiceType.ride;
-  Place? from = AppStore.places.first;
+  Place? from;
   Place? to;
+  String? _city;
+  DateTime? scheduledAt; // null = abhi
+  int seats = 1;
+  final promoCtrl = TextEditingController();
+  int discount = 0;
+  String? promoMsg;
+  bool bannerDismissed = false;
   VehicleType type = VehicleType.mini;
   PaymentMethod payment = PaymentMethod.cash;
   ParcelDetails? parcel;
@@ -30,17 +37,69 @@ class _PassengerHomeState extends State<PassengerHome> {
   String? error;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Sheher badla (profile se) to jaghein naye sheher ki.
+    final city = StoreScope.of(context).currentCity;
+    if (_city != city.name) {
+      _city = city.name;
+      from = city.places.first;
+      to = null;
+    }
+  }
+
+  @override
   void dispose() {
     fareCtrl.dispose();
     commentCtrl.dispose();
+    promoCtrl.dispose();
     super.dispose();
   }
 
   int? _suggested(AppStore store, [VehicleType? t]) => (from != null && to != null)
       ? store.suggestedFare(t ?? type, from!, to!,
           parcel: service == ServiceType.courier ? parcel : null,
-          freight: service == ServiceType.freight ? freight : null)
+          freight: service == ServiceType.freight ? freight : null,
+          service: service)
       : null;
+
+  void _applyPromo() {
+    final store = StoreScope.of(context);
+    final fare = int.tryParse(fareCtrl.text.trim()) ?? _suggested(store) ?? 0;
+    if (promoCtrl.text.trim().isEmpty) {
+      setState(() {
+        discount = 0;
+        promoMsg = null;
+      });
+      return;
+    }
+    final (d, err) = store.checkPromo(promoCtrl.text, fare);
+    setState(() {
+      discount = d;
+      promoMsg = err ?? 'You save ${pkr(d)} on this trip';
+    });
+  }
+
+  Future<void> _pickTime() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: scheduledAt ?? now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 7)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(scheduledAt ?? now.add(const Duration(hours: 1))),
+    );
+    if (time == null) return;
+    final at = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    setState(() {
+      scheduledAt = at.isBefore(now.add(const Duration(minutes: 15))) ? null : at;
+      if (scheduledAt == null) error = 'Choose a time at least 15 minutes from now';
+    });
+  }
 
   void _refreshFare() {
     final s = _suggested(StoreScope.of(context));
@@ -52,12 +111,27 @@ class _PassengerHomeState extends State<PassengerHome> {
       service = s;
       error = null;
       if (!s.vehicles.contains(type)) type = s == ServiceType.freight ? s.vehicles.first : s.vehicles[1];
+      // Intercity mein manzil doosra sheher hoti hai.
+      if (s == ServiceType.intercity || (to != null && !StoreScope.of(context).currentCity.places.contains(to))) {
+        to = null;
+      }
+      if (s == ServiceType.freight) scheduledAt = null;
     });
     _refreshFare();
   }
 
   void _pickTo() async {
-    final p = await pickPlace(context, service == ServiceType.ride ? 'Where to?' : 'Delivery address', exclude: from);
+    final store = StoreScope.of(context);
+    final p = await pickPlace(
+      context,
+      switch (service) {
+        ServiceType.ride => 'Where to?',
+        ServiceType.intercity => 'Which city?',
+        _ => 'Delivery address',
+      },
+      exclude: from,
+      places: service == ServiceType.intercity ? store.intercityDestinations(store.currentCity.name) : null,
+    );
     if (p == null) return;
     setState(() => to = p);
     _refreshFare();
@@ -97,19 +171,29 @@ class _PassengerHomeState extends State<PassengerHome> {
       setState(() => error = 'Add cargo details');
       return;
     }
+    if (service == ServiceType.intercity && scheduledAt == null) {
+      setState(() => error = 'Choose a departure date and time');
+      return;
+    }
     if (service == ServiceType.freight && freight!.weightKg > type.maxKg) {
       setState(() => error = '${type.label} carries up to ${type.maxKg} kg. Choose a bigger vehicle.');
       return;
     }
     final p = service == ServiceType.courier ? parcel : null;
     final f = service == ServiceType.freight ? freight : null;
-    final minFare = store.lowestAllowedFare(type, from!, to!, parcel: p, freight: f);
+    final minFare = store.lowestAllowedFare(type, from!, to!, parcel: p, freight: f, service: service);
     if (fare == null || fare < minFare) {
       setState(() => error = 'Minimum fare for this trip is ${pkr(minFare)}');
       return;
     }
     final err = store.createRequest(type, from!, to!, fare, commentCtrl.text.trim(),
-        service: service, payment: payment, parcel: p, freight: f);
+        service: service,
+        payment: payment,
+        parcel: p,
+        freight: f,
+        scheduledAt: scheduledAt,
+        seats: service == ServiceType.intercity ? seats : 1,
+        promo: promoCtrl.text);
     if (err != null) setState(() => error = err);
   }
 
@@ -127,6 +211,7 @@ class _PassengerHomeState extends State<PassengerHome> {
         children: [
           Positioned.fill(
             child: RideMap(
+              center: store.currentCity.center,
               from: from,
               to: to,
               cars: [
@@ -143,7 +228,8 @@ class _PassengerHomeState extends State<PassengerHome> {
               child: Builder(
                 builder: (ctx) => Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Row(children: [
+                  child: Column(children: [
+                    Row(children: [
                     FloatingActionButton.small(
                       heroTag: 'back',
                       tooltip: 'Back',
@@ -158,8 +244,11 @@ class _PassengerHomeState extends State<PassengerHome> {
                       onPressed: () => Scaffold.of(ctx).openDrawer(),
                       child: const Icon(Icons.menu),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(child: _serviceTabs()),
+                    const Spacer(),
+                    const NotificationBell(onMap: true),
+                    ]),
+                    const SizedBox(height: 8),
+                    _serviceTabs(),
                   ]),
                 ),
               ),
@@ -190,9 +279,13 @@ class _PassengerHomeState extends State<PassengerHome> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(serviceIcon(s), size: 18),
-                    const SizedBox(width: 4),
-                    Text(s.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    Icon(serviceIcon(s), size: 16),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(s.label,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    ),
                   ]),
                 ),
               ),
@@ -218,6 +311,26 @@ class _PassengerHomeState extends State<PassengerHome> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (store.bannerActive && !bannerDismissed) ...[
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.campaign_outlined, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(store.bannerText, style: const TextStyle(fontSize: 13))),
+                    IconButton(
+                      tooltip: 'Hide',
+                      onPressed: () => setState(() => bannerDismissed = true),
+                      icon: const Icon(Icons.close, size: 18),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 10),
+              ],
               SizedBox(
                 height: 74,
                 child: Row(children: [
@@ -230,10 +343,57 @@ class _PassengerHomeState extends State<PassengerHome> {
               const SizedBox(height: 10),
               _tile(Icons.circle, AppColors.brand, from?.name ?? 'Pickup', _pickFrom),
               const SizedBox(height: 8),
-              _tile(Icons.circle, AppColors.dark,
-                  to?.name ?? (service == ServiceType.ride ? 'Where to?' : 'Delivery address'), _pickTo,
+              _tile(
+                  service == ServiceType.intercity ? Icons.location_city : Icons.circle,
+                  AppColors.dark,
+                  to?.name ??
+                      switch (service) {
+                        ServiceType.ride => 'Where to?',
+                        ServiceType.intercity => 'Which city?',
+                        _ => 'Delivery address',
+                      },
+                  _pickTo,
                   placeholder: to == null),
-              if (service != ServiceType.ride) ...[
+              if (service != ServiceType.freight) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: _tile(
+                      Icons.schedule,
+                      AppColors.dark,
+                      scheduledAt == null
+                          ? (service == ServiceType.intercity ? 'Departure date and time' : 'Now')
+                          : 'Scheduled: ${_when(scheduledAt!)}',
+                      _pickTime,
+                      placeholder: scheduledAt == null && service == ServiceType.intercity,
+                    ),
+                  ),
+                  if (scheduledAt != null)
+                    IconButton(
+                      tooltip: 'Ride now',
+                      onPressed: () => setState(() => scheduledAt = null),
+                      icon: const Icon(Icons.close),
+                    ),
+                ]),
+              ],
+              if (service == ServiceType.intercity) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  const Icon(Icons.event_seat_outlined, size: 20),
+                  const SizedBox(width: 10),
+                  const Expanded(child: Text('Passengers', style: TextStyle(fontSize: 16))),
+                  IconButton(
+                    onPressed: seats > 1 ? () => setState(() => seats--) : null,
+                    icon: const Icon(Icons.remove_circle_outline),
+                  ),
+                  Text('$seats', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  IconButton(
+                    onPressed: seats < 4 ? () => setState(() => seats++) : null,
+                    icon: const Icon(Icons.add_circle_outline),
+                  ),
+                ]),
+              ],
+              if (service == ServiceType.courier || service == ServiceType.freight) ...[
                 const SizedBox(height: 8),
                 _tile(
                   service == ServiceType.courier ? Icons.inventory_2_outlined : Icons.local_shipping_outlined,
@@ -256,7 +416,33 @@ class _PassengerHomeState extends State<PassengerHome> {
                   hintText: 'Offer your fare',
                   helperText: suggested == null ? null : 'Recommended fare: ${pkr(suggested)}',
                 ),
+                onChanged: (_) {
+                  if (discount > 0) _applyPromo();
+                },
               ),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: promoCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.local_offer_outlined), hintText: 'Promo code', isDense: true),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                  onPressed: _applyPromo,
+                  child: const Text('Apply'),
+                ),
+              ]),
+              if (promoMsg != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, left: 4),
+                  child: Text(promoMsg!,
+                      style: TextStyle(fontSize: 12, color: discount > 0 ? Colors.green.shade700 : AppColors.danger)),
+                ),
               const SizedBox(height: 8),
               Row(children: [
                 for (final m in PaymentMethod.values) ...[
@@ -299,6 +485,7 @@ class _PassengerHomeState extends State<PassengerHome> {
                   ServiceType.ride => 'Find a driver',
                   ServiceType.courier => 'Find a courier',
                   ServiceType.freight => 'Find a vehicle',
+                  ServiceType.intercity => 'Find an intercity driver',
                 }),
               ),
             ],
@@ -306,6 +493,14 @@ class _PassengerHomeState extends State<PassengerHome> {
         ),
       ),
     );
+  }
+
+  static String _when(DateTime t) {
+    final now = DateTime.now();
+    final day = t.day == now.day && t.month == now.month
+        ? 'Today'
+        : (t.difference(DateTime(now.year, now.month, now.day)).inDays == 1 ? 'Tomorrow' : '${t.day}/${t.month}');
+    return '$day, ${hhmm(t)}';
   }
 
   String _detailsSummary() {

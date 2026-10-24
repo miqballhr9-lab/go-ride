@@ -4,10 +4,11 @@ import '../main.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'admin_more.dart';
 import 'admin_ops.dart';
 import 'admin_people.dart';
 
-enum AdminPage { dashboard, liveMap, drivers, passengers, rides, payments, support, settings }
+enum AdminPage { dashboard, liveMap, drivers, passengers, rides, payments, support, safety, marketing, reports, settings, audit, staff }
 
 extension on AdminPage {
   String get label => switch (this) {
@@ -18,7 +19,12 @@ extension on AdminPage {
     AdminPage.rides => 'Rides',
     AdminPage.payments => 'Payments',
     AdminPage.support => 'Support',
-    AdminPage.settings => 'Fares & settings',
+    AdminPage.safety => 'Safety',
+    AdminPage.marketing => 'Marketing',
+    AdminPage.reports => 'Reports',
+    AdminPage.settings => 'Cities & fares',
+    AdminPage.audit => 'Audit log',
+    AdminPage.staff => 'Staff',
   };
 
   IconData get icon => switch (this) {
@@ -29,9 +35,29 @@ extension on AdminPage {
     AdminPage.rides => Icons.route_outlined,
     AdminPage.payments => Icons.payments_outlined,
     AdminPage.support => Icons.support_agent,
+    AdminPage.safety => Icons.shield_outlined,
+    AdminPage.marketing => Icons.campaign_outlined,
+    AdminPage.reports => Icons.bar_chart,
     AdminPage.settings => Icons.tune,
+    AdminPage.audit => Icons.history_edu,
+    AdminPage.staff => Icons.manage_accounts_outlined,
   };
 }
+
+String adminPageLabel(AdminPage p) => p.label;
+
+/// Har role ko sirf apne kaam ke pages.
+bool canSee(AdminRole role, AdminPage p) => switch (role) {
+  AdminRole.superAdmin => true,
+  AdminRole.support => const {
+      AdminPage.dashboard, AdminPage.liveMap, AdminPage.passengers, AdminPage.rides,
+      AdminPage.support, AdminPage.safety,
+    }.contains(p),
+  AdminRole.verification => const {AdminPage.dashboard, AdminPage.drivers, AdminPage.safety}.contains(p),
+  AdminRole.finance => const {
+      AdminPage.dashboard, AdminPage.rides, AdminPage.payments, AdminPage.reports, AdminPage.marketing,
+    }.contains(p),
+};
 
 /// Control office: chaudi screen pe side rail, phone pe drawer.
 class AdminShell extends StatefulWidget {
@@ -47,6 +73,10 @@ class _AdminShellState extends State<AdminShell> {
 
   void go(AdminPage p) {
     if (p == page) return;
+    if (!canSee(StoreScope.of(context).currentStaff!.role, p)) {
+      showSnack(context, 'Your role cannot open ${p.label}');
+      return;
+    }
     setState(() {
       _history.add(page);
       page = p;
@@ -66,10 +96,13 @@ class _AdminShellState extends State<AdminShell> {
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
     final wide = MediaQuery.of(context).size.width >= 900;
+    final staff = store.currentStaff!;
+    final pages = AdminPage.values.where((p) => canSee(staff.role, p)).toList();
     int badge(AdminPage p) => switch (p) {
       AdminPage.drivers => store.pendingDrivers.length,
       AdminPage.support => store.openTickets,
-      AdminPage.payments => store.pendingTopUps.length,
+      AdminPage.payments => store.pendingTopUps.length + store.pendingWithdrawals.length,
+      AdminPage.safety => store.openAlerts,
       _ => 0,
     };
 
@@ -111,12 +144,43 @@ class _AdminShellState extends State<AdminShell> {
                 style: TextStyle(color: AppColors.brand, fontSize: 22, fontWeight: FontWeight.w900),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: Text('Control office', style: TextStyle(color: Colors.white54)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Text('Control office · ${staff.name}', style: const TextStyle(color: Colors.white54)),
             ),
-            for (final p in AdminPage.values) navItem(p, closeDrawer: closeDrawer),
-            const Spacer(),
+            Expanded(
+              child: ListView(children: [for (final p in pages) navItem(p, closeDrawer: closeDrawer)]),
+            ),
+            ListTile(
+              iconColor: Colors.white70,
+              textColor: Colors.white70,
+              leading: const Icon(Icons.switch_account_outlined),
+              title: const Text('Switch role (demo)'),
+              onTap: () async {
+                if (closeDrawer) Navigator.pop(context);
+                final a = await showModalBottomSheet<StaffAccount>(
+                  context: context,
+                  showDragHandle: true,
+                  builder: (ctx) => SafeArea(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      for (final a in store.staff)
+                        ListTile(
+                          leading: Avatar(a.name, size: 36),
+                          title: Text(a.name),
+                          subtitle: Text(a.role.label),
+                          onTap: () => Navigator.pop(ctx, a),
+                        ),
+                    ]),
+                  ),
+                );
+                if (a == null) return;
+                store.adminLogin(a.username, a.password);
+                setState(() {
+                  page = AdminPage.dashboard;
+                  _history.clear();
+                });
+              },
+            ),
             ListTile(
               iconColor: Colors.white70,
               textColor: Colors.white70,
@@ -137,7 +201,12 @@ class _AdminShellState extends State<AdminShell> {
       AdminPage.rides => const AdminRides(),
       AdminPage.payments => const AdminPayments(),
       AdminPage.support => const AdminSupport(),
+      AdminPage.safety => const AdminSafety(),
+      AdminPage.marketing => const AdminMarketing(),
+      AdminPage.reports => const AdminReports(),
       AdminPage.settings => const AdminSettings(),
+      AdminPage.audit => const AdminAudit(),
+      AdminPage.staff => const AdminStaff(),
     };
 
     return PopScope(
@@ -168,7 +237,7 @@ class _AdminShellState extends State<AdminShell> {
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       children: [
-                        for (final p in AdminPage.values)
+                        for (final p in pages)
                           Padding(
                             padding: const EdgeInsets.only(right: 6),
                             child: ChoiceChip(
@@ -198,6 +267,8 @@ class _AdminShellState extends State<AdminShell> {
                           IconButton(tooltip: 'Back', onPressed: back, icon: const Icon(Icons.arrow_back)),
                           const SizedBox(width: 4),
                           Text(page.label, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+                          const Spacer(),
+                          StatusChip('${staff.name} · ${staff.role.label}', AppColors.dark),
                         ],
                       ),
                     ),
@@ -259,6 +330,7 @@ class AdminDashboard extends StatelessWidget {
       ),
       ('Pending drivers', '${store.pendingDrivers.length}', 'Waiting for document review', AdminPage.drivers),
       ('Open tickets', '${store.openTickets}', 'Waiting for a support reply', AdminPage.support),
+      ('Open SOS alerts', '${store.openAlerts}', 'Need action now', AdminPage.safety),
       ('Pending top-ups', '${store.pendingTopUps.length}', 'Bank transfers to check', AdminPage.payments),
       (
         'Courier · Freight (24 h)',
@@ -334,33 +406,53 @@ class AdminDashboard extends StatelessWidget {
   }
 }
 
-class AdminLiveMap extends StatelessWidget {
+class AdminLiveMap extends StatefulWidget {
   const AdminLiveMap({super.key});
+
+  @override
+  State<AdminLiveMap> createState() => _AdminLiveMapState();
+}
+
+class _AdminLiveMapState extends State<AdminLiveMap> {
+  String city = 'Lahore';
 
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
-    final online = store.onlineDrivers;
+    final online = store.onlineDrivers.where((u) => u.city == city).toList();
     final byType = {for (final t in VehicleType.values) t: online.where((u) => u.driver!.vehicle.type == t).length};
+    final sos = store.alerts.where((a) => !a.resolved).length;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final c in store.cityData.keys)
+              ChoiceChip(label: Text(c), selected: c == city, onSelected: (_) => setState(() => city = c)),
+          ]),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
               StatusChip('${online.length} online', Colors.green.shade700),
-              for (final e in byType.entries) StatusChip('${e.key.label}: ${e.value}', AppColors.dark),
-              StatusChip('${store.activeRides} active rides', Colors.blue.shade700),
+              for (final e in byType.entries)
+                if (e.value > 0) StatusChip('${e.key.label}: ${e.value}', AppColors.dark),
+              StatusChip('${store.rides.where((r) => r.status.isActive && r.city == city).length} active rides',
+                  Colors.blue.shade700),
+              if (sos > 0) StatusChip('$sos open SOS', AppColors.danger),
             ],
           ),
           const SizedBox(height: 12),
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: RideMap(zoom: 12, cars: [for (final d in online) d.driver!.location!]),
+              child: RideMap(
+                zoom: 12,
+                center: store.cityOf(city).center,
+                cars: [for (final d in online) d.driver!.location!],
+              ),
             ),
           ),
         ],

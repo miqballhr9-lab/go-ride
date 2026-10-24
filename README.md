@@ -23,7 +23,20 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 - In-app call screen (phone numbers hidden) and chat during the ride
 - Rating with tags and a comment for both driver and passenger, visible to the control office
 
-**Passenger mode**
+**Cities, zones and intercity**
+- Lahore, Karachi and Islamabad, each with its own places, fares, commission, airport fee and enabled services
+- Intercity trips between cities with departure time and seats; rides and couriers can be scheduled
+
+**Safety**
+- SOS alerts go to the control office with trip and driver details
+- Daily driver selfie check, driving license expiry (expired licenses cannot go online)
+- Suspicious account flags (frequent cancellations, low rating, large negative balance), warnings and suspensions
+
+**Marketing**
+- Promo codes (percent or fixed, usage limits, expiry); Go Ride pays the driver the discount
+- Referral codes: both users get a wallet bonus
+- Driver bonuses ("complete N rides, earn Rs X"), notifications to everyone, passengers or drivers, and a passenger app banner
+
 - Choose Moto / Ride Mini / Ride AC, pickup and destination, recommended fare
 - Offer your own fare (down to 70% of recommended), comment for the driver
 - Driver offers: Accept / Decline, raise fare by Rs 20
@@ -46,6 +59,12 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 - Rides: filter by status and type, full ride details, cancel active rides
 - Support: reply to tickets with templates, close tickets
 - Payments: approve or reject bank transfer top-ups, drivers below zero, all transactions, manual balance adjustment
+- Driver withdrawals (mark paid / reject) and ride refunds to the passenger wallet
+- Staff roles (Super admin, Support, Verification, Finance) with role-based pages, and an audit log of every staff action
+- Safety: open SOS alerts, suspicious accounts, licenses to renew
+- Marketing: promo codes, driver bonuses, notifications, banner
+- Reports: ride requests per hour, fares by service, top drivers, CSV export
+- Support tickets can be assigned to an agent; tickets open for over 2 hours show as overdue
 - Fares & settings: base fare, per km, minimum fare per vehicle type, commission %
 
 ![App flow](docs/app-flow.png)
@@ -53,8 +72,9 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 
 ## Still to do
 - [ ] Firebase backend (real login, real drivers/passengers, live location)
-- [ ] GPS location, place search (geocoding)
-- [ ] Document upload, notifications, in-app chat/call
+- [ ] Real GPS location and place search (geocoding); the moving car on the map is simulated
+- [ ] Real document upload, push notifications (FCM), SMS OTP, payment gateways and phone calls
+- [ ] Urdu language option
 
 > All rides and drivers currently come from demo data in `lib/store.dart`.
 > Once Firebase is connected, the same methods will talk to the real backend.

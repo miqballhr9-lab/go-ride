@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -16,6 +17,7 @@ IconData serviceIcon(ServiceType s) => switch (s) {
       ServiceType.ride => Icons.directions_car,
       ServiceType.courier => Icons.inventory_2_outlined,
       ServiceType.freight => Icons.local_shipping_outlined,
+      ServiceType.intercity => Icons.route,
     };
 
 IconData vehicleIcon(VehicleType t) => switch (t) {
@@ -77,7 +79,8 @@ class RideMap extends StatelessWidget {
   final Place? to;
   final List<LatLng> cars;
   final double zoom;
-  const RideMap({super.key, this.from, this.to, this.cars = const [], this.zoom = 13});
+  final LatLng? center;
+  const RideMap({super.key, this.from, this.to, this.cars = const [], this.zoom = 13, this.center});
 
   @override
   Widget build(BuildContext context) {
@@ -90,12 +93,12 @@ class RideMap extends StatelessWidget {
             ),
           )
         : MapOptions(
-            initialCenter: points.isEmpty ? AppStore.cityCenter : points.first,
+            initialCenter: points.isEmpty ? (center ?? AppStore.cityCenter) : points.first,
             initialZoom: zoom,
           );
     return FlutterMap(
       // Key badalne se camera naye points pe chala jata hai.
-      key: ValueKey('${from?.name}-${to?.name}'),
+      key: ValueKey('${from?.name}-${to?.name}-$center'),
       options: options,
       children: [
         TileLayer(
@@ -168,19 +171,25 @@ class RouteLines extends StatelessWidget {
       ]);
 }
 
-Future<Place?> pickPlace(BuildContext context, String title, {Place? exclude}) {
+/// Jagah chunna; `places` na diya ho to user ke sheher ki jaghein.
+Future<Place?> pickPlace(BuildContext context, String title, {Place? exclude, List<Place>? places}) {
+  final store = StoreScope.of(context);
+  final list = places ?? store.currentCity.places;
+  final city = store.currentCity.name;
   return showModalBottomSheet<Place>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (ctx) => _PlacePicker(title: title, exclude: exclude),
+    builder: (ctx) => _PlacePicker(title: title, exclude: exclude, places: list, city: city),
   );
 }
 
 class _PlacePicker extends StatefulWidget {
   final String title;
   final Place? exclude;
-  const _PlacePicker({required this.title, this.exclude});
+  final List<Place> places;
+  final String city;
+  const _PlacePicker({required this.title, this.exclude, required this.places, required this.city});
 
   @override
   State<_PlacePicker> createState() => _PlacePickerState();
@@ -191,7 +200,7 @@ class _PlacePickerState extends State<_PlacePicker> {
 
   @override
   Widget build(BuildContext context) {
-    final list = AppStore.places
+    final list = widget.places
         .where((p) => p != widget.exclude && p.name.toLowerCase().contains(query.toLowerCase()))
         .toList();
     return SizedBox(
@@ -213,7 +222,7 @@ class _PlacePickerState extends State<_PlacePicker> {
                   ListTile(
                     leading: const Icon(Icons.place_outlined),
                     title: Text(p.name),
-                    subtitle: const Text('Lahore'),
+                    subtitle: Text(p.isAirport ? '${widget.city} · Airport fee applies' : widget.city),
                     onTap: () => Navigator.pop(context, p),
                   ),
               ],
@@ -374,6 +383,20 @@ class AppDrawer extends StatelessWidget {
               onTap: () => go(const SafetyScreen()),
             ),
             ListTile(
+              leading: const Icon(Icons.notifications_outlined),
+              title: const Text('Notifications'),
+              trailing: store.unreadNotifications > 0
+                  ? StatusChip('${store.unreadNotifications} new', AppColors.danger)
+                  : null,
+              onTap: () => go(const NotificationsScreen()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.card_giftcard),
+              title: const Text('Invite friends'),
+              subtitle: Text('Code ${user.referralCode} · both get ${pkr(AppStore.referralBonus)}'),
+              onTap: () => go(const ReferralScreen()),
+            ),
+            ListTile(
               leading: const Icon(Icons.admin_panel_settings_outlined),
               title: const Text('Control office (demo)'),
               onTap: () {
@@ -500,4 +523,140 @@ class _SafetyTip extends StatelessWidget {
           ),
         ]),
       );
+}
+
+
+/// Ghanti ka button, na-parhi notifications ki ginti ke saath.
+class NotificationBell extends StatelessWidget {
+  final bool onMap;
+  const NotificationBell({super.key, this.onMap = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = StoreScope.of(context).unreadNotifications;
+    final icon = Badge(
+      isLabelVisible: n > 0,
+      label: Text('$n'),
+      child: const Icon(Icons.notifications_outlined),
+    );
+    void open() => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+    return onMap
+        ? FloatingActionButton.small(
+            heroTag: 'bell', tooltip: 'Notifications', backgroundColor: Colors.white, onPressed: open, child: icon)
+        : IconButton(tooltip: 'Notifications', onPressed: open, icon: icon);
+  }
+}
+
+class NotificationsScreen extends StatefulWidget {
+  const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  late final AppStore store;
+  late final Set<String> unreadIds;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    store = StoreScope.of(context);
+    final me = store.currentUser!.id;
+    unreadIds = {for (final n in store.myNotifications) if (!n.readBy.contains(me)) n.id};
+  }
+
+  @override
+  void dispose() {
+    store.markNotificationsRead();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = StoreScope.of(context).myNotifications;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notifications')),
+      body: list.isEmpty
+          ? const Center(child: Text('No notifications', style: TextStyle(color: AppColors.muted)))
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: list.length,
+              separatorBuilder: (_, _) => const Divider(height: 20),
+              itemBuilder: (_, i) {
+                final n = list[i];
+                final unread = unreadIds.contains(n.id);
+                return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, right: 10),
+                    child: CircleAvatar(radius: 4, backgroundColor: unread ? AppColors.danger : Colors.transparent),
+                  ),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(n.title, style: TextStyle(fontWeight: unread ? FontWeight.w800 : FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(n.body),
+                      const SizedBox(height: 2),
+                      Text(timeAgo(n.time), style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                    ]),
+                  ),
+                ]);
+              },
+            ),
+    );
+  }
+}
+
+class ReferralScreen extends StatelessWidget {
+  const ReferralScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = StoreScope.of(context);
+    final u = store.currentUser!;
+    final invited = store.users.values.where((x) => x.referredBy == u.id).toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Invite friends')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Icon(Icons.card_giftcard, size: 64),
+          const SizedBox(height: 12),
+          Text('Give ${pkr(AppStore.referralBonus)}, get ${pkr(AppStore.referralBonus)}',
+              textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          const Text('When a friend signs up with your code, you both get a wallet bonus.',
+              textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)),
+            child: Row(children: [
+              Expanded(
+                child: SelectableText(u.referralCode,
+                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: 2)),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: u.referralCode));
+                  if (context.mounted) showSnack(context, 'Code copied');
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                label: const Text('Copy'),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          Text('Friends who joined (${invited.length})', style: const TextStyle(fontWeight: FontWeight.w800)),
+          for (final f in invited) ListTile(contentPadding: EdgeInsets.zero, leading: Avatar(f.name), title: Text(f.name)),
+          if (invited.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('No one yet. Share your code!', style: TextStyle(color: AppColors.muted)),
+            ),
+        ],
+      ),
+    );
+  }
 }

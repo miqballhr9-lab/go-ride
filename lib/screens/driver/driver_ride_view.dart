@@ -66,6 +66,12 @@ class _DriverRideViewState extends State<DriverRideView> {
                 const SizedBox(height: 12),
                 RouteLines(from: ride.from, to: ride.to),
                 ServiceInfo(ride: ride),
+                if (ride.scheduledAt != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('Pickup: ${ride.scheduledAt!.day}/${ride.scheduledAt!.month} at ${hhmm(ride.scheduledAt!)}',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
                 if (ride.comment.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text('"${ride.comment}"', style: const TextStyle(fontStyle: FontStyle.italic)),
@@ -100,6 +106,16 @@ class _DriverRideViewState extends State<DriverRideView> {
         };
         return [
           FilledButton(onPressed: action, child: Text(buttonText)),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+            onPressed: () {
+              store.raiseSos(ride);
+              showSnack(context, 'SOS sent. Go Ride safety team is alerted.');
+            },
+            icon: const Icon(Icons.sos),
+            label: const Text('SOS'),
+          ),
           const SizedBox(height: 8),
           ContactButtons(
             ride: ride,

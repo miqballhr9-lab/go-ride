@@ -62,6 +62,7 @@ void main() {
     expect(store.driverOnline, isFalse);
     expect(store.pendingDrivers, contains(me));
     store.approveDriver(me);
+    store.takeSelfie();
     store.setDriverOnline(true);
     expect(store.driverOnline, isTrue);
     expect(store.openRequests, isNotEmpty);
@@ -98,6 +99,7 @@ void main() {
   test('Commission is taken from driver wallet; negative balance blocks going online', () {
     final store = AppStore();
     store.demoLogin(AppMode.driver);
+    store.takeSelfie();
     final me = store.currentUser!;
     final start = me.walletBalance;
     store.adjustBalance(me, -start - 50, 'test');
@@ -160,6 +162,7 @@ void main() {
       vehicle: const Vehicle(type: VehicleType.shehzore, model: 'Shehzore', color: 'White', plate: 'LES-1', year: 2019),
     );
     store.approveDriver(store.currentUser!);
+    store.takeSelfie();
     store.setDriverOnline(true);
     expect(store.openRequests, isNotEmpty);
     expect(store.openRequests.every((r) => r.service == ServiceType.freight && r.freight != null), isTrue);
@@ -177,6 +180,100 @@ void main() {
     expect(store.currentUser, isNotNull);
     store.goBack();
     expect(store.currentUser, isNull);
+    store.dispose();
+  });
+
+  test('Promo code lowers what the passenger pays; Go Ride pays the driver the discount', () async {
+    final store = AppStore();
+    store.demoLogin(AppMode.passenger);
+    final a = AppStore.places[0], b = AppStore.places[3];
+    final fare = store.suggestedFare(VehicleType.mini, a, b);
+    final (d, err) = store.checkPromo('GORIDE100', fare);
+    expect(err, isNull);
+    expect(d, 100);
+    expect(store.checkPromo('EID2026', fare).$2, isNotNull); // expired
+    expect(store.createRequest(VehicleType.mini, a, b, fare, '', promo: 'GORIDE100'), isNull);
+    final ride = store.passengerRide!;
+    expect(ride.discount, 100);
+    await Future.delayed(const Duration(seconds: 6));
+    store.acceptOffer(ride.offers.first);
+    await Future.delayed(const Duration(seconds: 22));
+    expect(ride.status, RideStatus.completed);
+    expect(ride.passengerPays, ride.finalFare - 100);
+    expect(store.transactions.any((t) => t.rideId == ride.id && t.type == TxType.promo && t.amount == 100), isTrue);
+    store.dispose();
+  }, timeout: const Timeout(Duration(seconds: 40)));
+
+  test('Referral gives both users a bonus', () {
+    final store = AppStore();
+    final friend = store.userByPhone(AppStore.demoPassengerPhone)!;
+    final before = friend.walletBalance;
+    expect(store.signup(phone: '+923005555555', name: 'New', email: '', city: 'Lahore', referral: 'NOPE1'), isNotNull);
+    expect(store.signup(phone: '+923005555555', name: 'New', email: '', city: 'Lahore', referral: friend.referralCode), isNull);
+    expect(store.currentUser!.walletBalance, AppStore.referralBonus);
+    expect(friend.walletBalance, before + AppStore.referralBonus);
+    store.dispose();
+  });
+
+  test('Driver needs a daily selfie and valid license to go online; suspension blocks too', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.driver);
+    expect(store.onlineBlocker, 'selfie');
+    store.takeSelfie();
+    expect(store.onlineBlocker, isNull);
+    final me = store.currentUser!;
+    me.driver!.licenseExpiry = DateTime.now().subtract(const Duration(days: 1));
+    expect(store.onlineBlocker, contains('license'));
+    me.driver!.licenseExpiry = DateTime.now().add(const Duration(days: 100));
+    store.adminLogin(AppStore.adminUsername, AppStore.adminPassword);
+    store.suspendUser(me, 3, 'test');
+    expect(store.onlineBlocker, contains('suspended'));
+    expect(store.auditLog.first.action, contains('Suspended'));
+    store.dispose();
+  });
+
+  test('Withdrawal holds money until finance approves or rejects', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.driver);
+    final me = store.currentUser!;
+    final start = me.walletBalance;
+    expect(store.requestWithdrawal(100, 'JazzCash', '••••1'), isNotNull); // kam se kam 500
+    expect(store.requestWithdrawal(500, 'JazzCash', '••••1'), isNull);
+    expect(me.walletBalance, start - 500);
+    final t = store.pendingWithdrawals.firstWhere((t) => t.userId == me.id);
+    store.rejectWithdrawal(t);
+    expect(me.walletBalance, start);
+    store.dispose();
+  });
+
+  test('Staff roles: support cannot see payments; SOS alert shows up for the safety team', () {
+    final store = AppStore();
+    expect(store.adminLogin('support', 'support123'), isTrue);
+    expect(store.currentStaff!.role, AdminRole.support);
+    store.adminLogout();
+    store.demoLogin(AppMode.passenger);
+    final a = AppStore.places[0], b = AppStore.places[3];
+    store.createRequest(VehicleType.mini, a, b, store.suggestedFare(VehicleType.mini, a, b), '');
+    final before = store.openAlerts;
+    store.raiseSos(store.passengerRide!);
+    expect(store.openAlerts, before + 1);
+    store.dispose();
+  });
+
+  test('Cities have their own places, fares and airport fee; intercity is cheaper per km', () {
+    final store = AppStore();
+    store.signup(phone: '+923004444444', name: 'Khi', email: '', city: 'Karachi');
+    expect(store.currentCity.name, 'Karachi');
+    final places = store.currentCity.places;
+    final airport = places.firstWhere((p) => p.isAirport);
+    final normal = places.firstWhere((p) => !p.isAirport && p != places.first);
+    final withAirport = store.suggestedFare(VehicleType.mini, places.first, airport);
+    expect(withAirport, greaterThan(store.settings.minFare[VehicleType.mini]!));
+    expect(store.suggestedFare(VehicleType.mini, places.first, normal), greaterThan(0));
+    final isb = store.cityOf('Islamabad').asPlace;
+    final ride = store.suggestedFare(VehicleType.mini, store.currentCity.asPlace, isb);
+    final intercity = store.suggestedFare(VehicleType.mini, store.currentCity.asPlace, isb, service: ServiceType.intercity);
+    expect(intercity, lessThan(ride));
     store.dispose();
   });
 }

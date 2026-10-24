@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../main.dart';
 import '../../models.dart';
@@ -19,6 +22,33 @@ class PassengerRideView extends StatefulWidget {
 }
 
 class _PassengerRideViewState extends State<PassengerRideView> {
+  // Driver ki gari map pe chalti dikhane ke liye har second rebuild.
+  late final Timer _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  final DateTime _start = DateTime.now();
+
+  @override
+  void dispose() {
+    _tick.cancel();
+    super.dispose();
+  }
+
+  /// Demo GPS: driver pickup ki taraf, phir manzil ki taraf barhta hai.
+  LatLng? _carPosition(RideRequest ride) {
+    final secs = DateTime.now().difference(_start).inMilliseconds / 1000;
+    LatLng lerp(LatLng a, LatLng b, double t) =>
+        LatLng(a.latitude + (b.latitude - a.latitude) * t, a.longitude + (b.longitude - a.longitude) * t);
+    switch (ride.status) {
+      case RideStatus.driverComing:
+        final startPoint = LatLng(ride.from.point.latitude + 0.02, ride.from.point.longitude - 0.02);
+        return lerp(startPoint, ride.from.point, (secs / 6).clamp(0, 0.95));
+      case RideStatus.driverArrived:
+        return ride.from.point;
+      case RideStatus.inProgress:
+        return lerp(ride.from.point, ride.to.point, ((secs % 12) / 12).clamp(0, 1));
+      default:
+        return null;
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final store = StoreScope.of(context);
@@ -47,7 +77,9 @@ class _PassengerRideViewState extends State<PassengerRideView> {
     final v = d.driver!.vehicle;
 
     final (title, subtitle) = switch (ride.status) {
-      RideStatus.driverComing => ('Driver is on the way', 'Arriving in ${offer.etaMinutes} min'),
+      RideStatus.driverComing => ride.scheduledAt != null
+          ? ('Driver confirmed', 'Pickup on ${ride.scheduledAt!.day}/${ride.scheduledAt!.month} at ${hhmm(ride.scheduledAt!)}')
+          : ('Driver is on the way', 'Arriving in ${offer.etaMinutes} min'),
       RideStatus.driverArrived => ('Your driver has arrived', 'Look for a ${v.color} ${v.model}'),
       RideStatus.inProgress => (
           ride.service == ServiceType.ride ? 'On the way' : 'Delivery in progress',
@@ -56,8 +88,8 @@ class _PassengerRideViewState extends State<PassengerRideView> {
       RideStatus.completed => (
           ride.service == ServiceType.ride ? 'You have arrived' : 'Delivered',
           ride.payment == PaymentMethod.wallet
-              ? '${pkr(offer.fare)} paid from your wallet'
-              : 'Please pay ${pkr(offer.fare)} cash to the driver'
+              ? '${pkr(ride.passengerPays)} paid from your wallet'
+              : 'Please pay ${pkr(ride.passengerPays)} cash to the driver'
         ),
       RideStatus.cancelled => ('Ride cancelled', ride.cancelReason ?? ''),
       RideStatus.searching => ('', ''),
@@ -66,7 +98,9 @@ class _PassengerRideViewState extends State<PassengerRideView> {
     return Scaffold(
       body: Column(
         children: [
-          Expanded(child: RideMap(from: ride.from, to: ride.to)),
+          Expanded(
+            child: RideMap(from: ride.from, to: ride.to, cars: [?_carPosition(ride)]),
+          ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: SafeArea(
@@ -102,7 +136,10 @@ class _PassengerRideViewState extends State<PassengerRideView> {
                   const SizedBox(height: 8),
                   ServiceInfo(ride: ride),
                   const SizedBox(height: 8),
-                  Text('Fare: ${pkr(offer.fare)} (${ride.payment.label.toLowerCase()})',
+                  Text(
+                      ride.discount > 0
+                          ? 'Fare: ${pkr(offer.fare)} − promo ${pkr(ride.discount)} = ${pkr(ride.passengerPays)} (${ride.payment.label.toLowerCase()})'
+                          : 'Fare: ${pkr(offer.fare)} (${ride.payment.label.toLowerCase()})',
                       style: const TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 16),
                   ..._actions(store, ride),
@@ -156,7 +193,10 @@ class _PassengerRideViewState extends State<PassengerRideView> {
           else
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-              onPressed: () => showSnack(context, 'SOS: calling 15 and alerting Go Ride support (demo)'),
+              onPressed: () {
+                store.raiseSos(ride);
+                showSnack(context, 'SOS sent. Go Ride safety team is alerted and can see your trip. Call 15 if needed.');
+              },
               icon: const Icon(Icons.sos),
               label: const Text('SOS'),
             ),

@@ -141,6 +141,10 @@ class DriverDetailScreen extends StatelessWidget {
               _kv('Vehicle', '${d.vehicle.color} ${d.vehicle.model} (${d.vehicle.year})'),
               _kv('Number plate', d.vehicle.plate),
               _kv('Submitted', timeAgo(d.submittedAt)),
+              _kv('License expiry',
+                  '${d.licenseExpiry.day}/${d.licenseExpiry.month}/${d.licenseExpiry.year}${d.licenseExpired ? ' (expired)' : d.licenseExpiringSoon ? ' (expiring soon)' : ''}'),
+              _kv('Selfie check', d.lastSelfieAt == null ? 'Not done yet' : timeAgo(d.lastSelfieAt!)),
+              _kv('Warnings', '${user.warnings}${user.suspended ? ' · suspended until ${user.suspendedUntil!.day}/${user.suspendedUntil!.month}' : ''}'),
               const SizedBox(height: 12),
               const Text('Documents', style: TextStyle(fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
@@ -217,6 +221,7 @@ class DriverDetailScreen extends StatelessWidget {
               icon: const Icon(Icons.account_balance_wallet_outlined),
               label: const Text('Adjust balance'),
             ),
+            ModerationButtons(user: user),
             if (d.status == DriverStatus.blocked)
               FilledButton.icon(
                 style: FilledButton.styleFrom(minimumSize: const Size(160, 48)),
@@ -316,7 +321,10 @@ class UserDetailScreen extends StatelessWidget {
               _kv('Rides', '${rides.length}'),
               _kv('Support tickets', '${tickets.length}'),
               _kv('Wallet', pkr(user.walletBalance)),
-              _kv('Account', user.blocked ? 'Blocked' : 'Active'),
+              _kv('Account', user.blocked ? 'Blocked' : (user.suspended ? 'Suspended until ${user.suspendedUntil!.day}/${user.suspendedUntil!.month}' : 'Active')),
+              _kv('Warnings', '${user.warnings}'),
+              _kv('Referral code', user.referralCode),
+              if (user.referredBy != null) _kv('Invited by', store.userById(user.referredBy!).name),
             ]),
           ),
           const SizedBox(height: 16),
@@ -341,6 +349,7 @@ class UserDetailScreen extends StatelessWidget {
               icon: const Icon(Icons.account_balance_wallet_outlined),
               label: const Text('Adjust balance'),
             ),
+            ModerationButtons(user: user),
             if (user.driver != null)
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48)),
@@ -359,5 +368,65 @@ class UserDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+
+/// Warning, suspend aur suspension khatam karna (driver aur passenger dono).
+class ModerationButtons extends StatelessWidget {
+  final AppUser user;
+  const ModerationButtons({super.key, required this.user});
+
+  static const _reasons = [
+    'Rude behaviour reported',
+    'Too many cancellations',
+    'Asked for extra money',
+    'Unsafe driving reported',
+    'Fake ride or fraud suspected',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final store = StoreScope.of(context);
+    return Wrap(spacing: 12, runSpacing: 12, children: [
+      OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48), foregroundColor: Colors.orange.shade900),
+        onPressed: () async {
+          final r = await pickReason(context, 'Send a warning', _reasons);
+          if (r != null) store.warnUser(user, r);
+        },
+        icon: const Icon(Icons.warning_amber_rounded),
+        label: const Text('Warn'),
+      ),
+      if (user.suspended)
+        FilledButton.icon(
+          style: FilledButton.styleFrom(minimumSize: const Size(160, 48)),
+          onPressed: () => store.unsuspendUser(user),
+          icon: const Icon(Icons.lock_open),
+          label: const Text('Lift suspension'),
+        )
+      else
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(160, 48), foregroundColor: AppColors.danger),
+          onPressed: () async {
+            final days = await showModalBottomSheet<int>(
+              context: context,
+              showDragHandle: true,
+              builder: (ctx) => SafeArea(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Text('Suspend for', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  for (final d in [1, 3, 7, 30])
+                    ListTile(title: Text('$d day${d > 1 ? 's' : ''}'), onTap: () => Navigator.pop(ctx, d)),
+                ]),
+              ),
+            );
+            if (days == null || !context.mounted) return;
+            final r = await pickReason(context, 'Reason', _reasons);
+            if (r != null) store.suspendUser(user, days, r);
+          },
+          icon: const Icon(Icons.timer_off_outlined),
+          label: const Text('Suspend'),
+        ),
+    ]);
   }
 }
