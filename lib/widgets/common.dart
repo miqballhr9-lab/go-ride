@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+
+export '../maps/ride_map.dart';
 
 import '../main.dart';
 import '../models.dart';
@@ -92,85 +92,6 @@ String timeAgo(DateTime t) {
 
 String hhmm(DateTime t) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
-/// OpenStreetMap wala map (free). Pickup hara, drop kala marker, aur gariyan.
-class RideMap extends StatelessWidget {
-  final Place? from;
-  final Place? to;
-  final List<LatLng> cars;
-  final double zoom;
-  final LatLng? center;
-  const RideMap({super.key, this.from, this.to, this.cars = const [], this.zoom = 13, this.center});
-
-  @override
-  Widget build(BuildContext context) {
-    final points = [if (from != null) from!.point, if (to != null) to!.point];
-    final options = points.length == 2
-        ? MapOptions(
-            initialCameraFit: CameraFit.coordinates(
-              coordinates: points,
-              padding: const EdgeInsets.all(60),
-            ),
-          )
-        : MapOptions(
-            initialCenter: points.isEmpty ? (center ?? AppStore.cityCenter) : points.first,
-            initialZoom: zoom,
-          );
-    return FlutterMap(
-      // Key badalne se camera naye points pe chala jata hai.
-      key: ValueKey('${from?.name}-${to?.name}-$center'),
-      options: options,
-      children: [
-        // CARTO Voyager: OpenStreetMap ka data, magar jaghon ke naam English mein
-        // (standard OSM map Pakistan mein naam Urdu mein dikhata hai). API key nahi chahiye.
-        TileLayer(
-          urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-          subdomains: const ['a', 'b', 'c', 'd'],
-          retinaMode: RetinaMode.isHighDensity(context),
-          userAgentPackageName: 'com.goride.go_ride',
-          maxZoom: 20,
-        ),
-        if (points.length == 2)
-          PolylineLayer(polylines: [
-            Polyline(points: points, strokeWidth: 5, color: AppColors.dark),
-          ]),
-        MarkerLayer(markers: [
-          for (final c in cars)
-            Marker(
-              point: c,
-              width: 30,
-              height: 30,
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.dark,
-                  shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
-                ),
-                child: const Icon(Icons.directions_car, size: 16, color: AppColors.brand),
-              ),
-            ),
-          if (from != null) _pin(from!.point, AppColors.brand),
-          if (to != null) _pin(to!.point, AppColors.dark),
-        ]),
-        const SimpleAttributionWidget(source: Text('© OpenStreetMap contributors © CARTO')),
-      ],
-    );
-  }
-
-  Marker _pin(LatLng p, Color c) => Marker(
-        point: p,
-        width: 26,
-        height: 26,
-        child: Container(
-          decoration: BoxDecoration(
-            color: c,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 4),
-            boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black26)],
-          ),
-        ),
-      );
-}
 
 /// Pickup / drop ki line, jaise inDrive ke card mein hoti hai.
 class RouteLines extends StatelessWidget {

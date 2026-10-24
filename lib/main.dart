@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'admin/admin_shell.dart';
+import 'maps/maps_config.dart';
 import 'models.dart';
 import 'screens/driver/driver_home.dart';
 import 'screens/login_screen.dart';
@@ -8,7 +9,9 @@ import 'screens/passenger/passenger_home.dart';
 import 'store.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await MapConfig.init();
   runApp(MikDriveApp(store: AppStore()));
 }
 

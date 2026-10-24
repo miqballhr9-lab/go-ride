@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
+  google_maps_flutter: ^2.19.0
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +64,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/mik_logo.png
+    - assets/map/
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

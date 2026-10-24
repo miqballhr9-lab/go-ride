@@ -79,6 +79,21 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 > All rides and drivers currently come from demo data in `lib/store.dart`.
 > Once Firebase is connected, the same methods will talk to the real backend.
 
+## Map (Google Maps, like inDrive)
+The app uses **Google Maps** when a key is given at build time, otherwise a free English-label map (CARTO, OpenStreetMap data).
+Pickup is chosen inDrive-style: move the map under the center pin.
+
+```bash
+flutter build web --release --dart-define=GOOGLE_MAPS_API_KEY=your_key
+```
+
+On Vercel add the environment variable `GOOGLE_MAPS_API_KEY` and use this build command:
+```
+flutter/bin/flutter config --enable-web && flutter/bin/flutter build web --release --dart-define=GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY
+```
+If the key is wrong or missing, the app falls back to the free map automatically.
+Google Maps on the Android/iOS apps still needs the key in the native settings (not set up yet).
+
 ## Running
 ```bash
 flutter pub get

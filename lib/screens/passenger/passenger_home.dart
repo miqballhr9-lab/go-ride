@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../main.dart';
 import '../../models.dart';
@@ -57,10 +58,14 @@ class _PassengerHomeState extends State<PassengerHome> {
   }
 
   int? _suggested(AppStore store, [VehicleType? t]) => (from != null && to != null)
-      ? store.suggestedFare(t ?? type, from!, to!,
+      ? store.suggestedFare(
+          t ?? type,
+          from!,
+          to!,
           parcel: service == ServiceType.courier ? parcel : null,
           freight: service == ServiceType.freight ? freight : null,
-          service: service)
+          service: service,
+        )
       : null;
 
   void _applyPromo() {
@@ -186,14 +191,20 @@ class _PassengerHomeState extends State<PassengerHome> {
       setState(() => error = 'Minimum fare for this trip is ${pkr(minFare)}');
       return;
     }
-    final err = store.createRequest(type, from!, to!, fare, commentCtrl.text.trim(),
-        service: service,
-        payment: payment,
-        parcel: p,
-        freight: f,
-        scheduledAt: scheduledAt,
-        seats: service == ServiceType.intercity ? seats : 1,
-        promo: promoCtrl.text);
+    final err = store.createRequest(
+      type,
+      from!,
+      to!,
+      fare,
+      commentCtrl.text.trim(),
+      service: service,
+      payment: payment,
+      parcel: p,
+      freight: f,
+      scheduledAt: scheduledAt,
+      seats: service == ServiceType.intercity ? seats : 1,
+      promo: promoCtrl.text,
+    );
     if (err != null) setState(() => error = err);
   }
 
@@ -207,97 +218,121 @@ class _PassengerHomeState extends State<PassengerHome> {
 
     return Scaffold(
       drawer: const AppDrawer(),
-      body: Stack(
+      // inDrive jaisa: upar map (beech mein pin), neeche request card.
+      body: Column(
         children: [
-          Positioned.fill(
-            child: RideMap(
-              center: store.currentCity.center,
-              from: from,
-              to: to,
-              cars: [
-                for (final d in store.onlineDrivers)
-                  if (service.vehicles.contains(d.driver!.vehicle.type)) d.driver!.location!
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: RideMap(
+                    center: store.currentCity.center,
+                    from: from,
+                    to: to,
+                    // inDrive jaisa: manzil chunne se pehle map ghuma kar pickup chuno.
+                    centerPin: to == null,
+                    onCenterChanged: (p) {
+                      final nearest = _nearestPlace(store.currentCity.places, p);
+                      if (nearest != from) setState(() => from = nearest);
+                    },
+                    cars: [
+                      for (final d in store.onlineDrivers)
+                        if (service.vehicles.contains(d.driver!.vehicle.type)) d.driver!.location!,
+                    ],
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Builder(
+                      builder: (ctx) => Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                FloatingActionButton.small(
+                                  heroTag: 'back',
+                                  tooltip: 'Back',
+                                  backgroundColor: Colors.white,
+                                  onPressed: store.goBack,
+                                  child: const Icon(Icons.arrow_back),
+                                ),
+                                const SizedBox(width: 6),
+                                FloatingActionButton.small(
+                                  heroTag: 'menu',
+                                  backgroundColor: Colors.white,
+                                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                                  child: const Icon(Icons.menu),
+                                ),
+                                const Spacer(),
+                                const NotificationBell(onMap: true),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _serviceTabs(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Builder(
-                builder: (ctx) => Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(children: [
-                    Row(children: [
-                    FloatingActionButton.small(
-                      heroTag: 'back',
-                      tooltip: 'Back',
-                      backgroundColor: Colors.white,
-                      onPressed: store.goBack,
-                      child: const Icon(Icons.arrow_back),
-                    ),
-                    const SizedBox(width: 6),
-                    FloatingActionButton.small(
-                      heroTag: 'menu',
-                      backgroundColor: Colors.white,
-                      onPressed: () => Scaffold.of(ctx).openDrawer(),
-                      child: const Icon(Icons.menu),
-                    ),
-                    const Spacer(),
-                    const NotificationBell(onMap: true),
-                    ]),
-                    const SizedBox(height: 8),
-                    _serviceTabs(),
-                  ]),
-                ),
-              ),
-            ),
-          ),
-          Align(alignment: Alignment.bottomCenter, child: _requestCard(store)),
+          _requestCard(store),
         ],
       ),
     );
   }
 
   Widget _serviceTabs() => Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: const [BoxShadow(blurRadius: 8, color: Colors.black12)],
-        ),
-        child: Row(children: [
-          for (final s in ServiceType.values)
-            Expanded(
-              child: GestureDetector(
-                onTap: () => _setService(s),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: s == service ? AppColors.brand : Colors.transparent,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+    padding: const EdgeInsets.all(4),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(30),
+      boxShadow: const [BoxShadow(blurRadius: 8, color: Colors.black12)],
+    ),
+    child: Row(
+      children: [
+        for (final s in ServiceType.values)
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _setService(s),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: s == service ? AppColors.brand : Colors.transparent,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Icon(serviceIcon(s), size: 16),
                     const SizedBox(width: 3),
                     Flexible(
-                      child: Text(s.label,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                      child: Text(
+                        s.label,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                      ),
                     ),
-                  ]),
+                  ],
                 ),
               ),
             ),
-        ]),
-      );
+          ),
+      ],
+    ),
+  );
 
   Widget _requestCard(AppStore store) {
     final suggested = _suggested(store);
     final wallet = store.currentUser!.walletBalance;
     return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.72),
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.55),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -318,80 +353,89 @@ class _PassengerHomeState extends State<PassengerHome> {
                     color: AppColors.brand.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(children: [
-                    const Icon(Icons.campaign_outlined, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(store.bannerText, style: const TextStyle(fontSize: 13))),
-                    IconButton(
-                      tooltip: 'Hide',
-                      onPressed: () => setState(() => bannerDismissed = true),
-                      icon: const Icon(Icons.close, size: 18),
-                    ),
-                  ]),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.campaign_outlined, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(store.bannerText, style: const TextStyle(fontSize: 13))),
+                      IconButton(
+                        tooltip: 'Hide',
+                        onPressed: () => setState(() => bannerDismissed = true),
+                        icon: const Icon(Icons.close, size: 18),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 10),
               ],
               SizedBox(
                 height: 74,
-                child: Row(children: [
-                  for (final t in service.vehicles) ...[
-                    Expanded(child: _typeTile(store, t)),
-                    if (t != service.vehicles.last) const SizedBox(width: 8),
+                child: Row(
+                  children: [
+                    for (final t in service.vehicles) ...[
+                      Expanded(child: _typeTile(store, t)),
+                      if (t != service.vehicles.last) const SizedBox(width: 8),
+                    ],
                   ],
-                ]),
+                ),
               ),
               const SizedBox(height: 10),
               _tile(Icons.circle, AppColors.brand, from?.name ?? 'Pickup', _pickFrom),
               const SizedBox(height: 8),
               _tile(
-                  service == ServiceType.intercity ? Icons.location_city : Icons.circle,
-                  AppColors.dark,
-                  to?.name ??
-                      switch (service) {
-                        ServiceType.ride => 'Where to?',
-                        ServiceType.intercity => 'Which city?',
-                        _ => 'Delivery address',
-                      },
-                  _pickTo,
-                  placeholder: to == null),
+                service == ServiceType.intercity ? Icons.location_city : Icons.circle,
+                AppColors.dark,
+                to?.name ??
+                    switch (service) {
+                      ServiceType.ride => 'Where to?',
+                      ServiceType.intercity => 'Which city?',
+                      _ => 'Delivery address',
+                    },
+                _pickTo,
+                placeholder: to == null,
+              ),
               if (service != ServiceType.freight) ...[
                 const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: _tile(
-                      Icons.schedule,
-                      AppColors.dark,
-                      scheduledAt == null
-                          ? (service == ServiceType.intercity ? 'Departure date and time' : 'Now')
-                          : 'Scheduled: ${_when(scheduledAt!)}',
-                      _pickTime,
-                      placeholder: scheduledAt == null && service == ServiceType.intercity,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _tile(
+                        Icons.schedule,
+                        AppColors.dark,
+                        scheduledAt == null
+                            ? (service == ServiceType.intercity ? 'Departure date and time' : 'Now')
+                            : 'Scheduled: ${_when(scheduledAt!)}',
+                        _pickTime,
+                        placeholder: scheduledAt == null && service == ServiceType.intercity,
+                      ),
                     ),
-                  ),
-                  if (scheduledAt != null)
-                    IconButton(
-                      tooltip: 'Ride now',
-                      onPressed: () => setState(() => scheduledAt = null),
-                      icon: const Icon(Icons.close),
-                    ),
-                ]),
+                    if (scheduledAt != null)
+                      IconButton(
+                        tooltip: 'Ride now',
+                        onPressed: () => setState(() => scheduledAt = null),
+                        icon: const Icon(Icons.close),
+                      ),
+                  ],
+                ),
               ],
               if (service == ServiceType.intercity) ...[
                 const SizedBox(height: 8),
-                Row(children: [
-                  const Icon(Icons.event_seat_outlined, size: 20),
-                  const SizedBox(width: 10),
-                  const Expanded(child: Text('Passengers', style: TextStyle(fontSize: 16))),
-                  IconButton(
-                    onPressed: seats > 1 ? () => setState(() => seats--) : null,
-                    icon: const Icon(Icons.remove_circle_outline),
-                  ),
-                  Text('$seats', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                  IconButton(
-                    onPressed: seats < 4 ? () => setState(() => seats++) : null,
-                    icon: const Icon(Icons.add_circle_outline),
-                  ),
-                ]),
+                Row(
+                  children: [
+                    const Icon(Icons.event_seat_outlined, size: 20),
+                    const SizedBox(width: 10),
+                    const Expanded(child: Text('Passengers', style: TextStyle(fontSize: 16))),
+                    IconButton(
+                      onPressed: seats > 1 ? () => setState(() => seats--) : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    Text('$seats', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                    IconButton(
+                      onPressed: seats < 4 ? () => setState(() => seats++) : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
               ],
               if (service == ServiceType.courier || service == ServiceType.freight) ...[
                 const SizedBox(height: 8),
@@ -421,43 +465,58 @@ class _PassengerHomeState extends State<PassengerHome> {
                 },
               ),
               const SizedBox(height: 8),
-              Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: promoCtrl,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.local_offer_outlined), hintText: 'Promo code', isDense: true),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: promoCtrl,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.local_offer_outlined),
+                        hintText: 'Promo code',
+                        isDense: true,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
-                  onPressed: _applyPromo,
-                  child: const Text('Apply'),
-                ),
-              ]),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                    onPressed: _applyPromo,
+                    child: const Text('Apply'),
+                  ),
+                ],
+              ),
               if (promoMsg != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4, left: 4),
-                  child: Text(promoMsg!,
-                      style: TextStyle(fontSize: 12, color: discount > 0 ? AppColors.dark : AppColors.danger, fontWeight: FontWeight.w600)),
-                ),
-              const SizedBox(height: 8),
-              Row(children: [
-                for (final m in PaymentMethod.values) ...[
-                  Expanded(
-                    child: ChoiceChip(
-                      avatar: Icon(m == PaymentMethod.cash ? Icons.payments_outlined : Icons.account_balance_wallet_outlined,
-                          size: 18),
-                      label: Text(m == PaymentMethod.cash ? 'Cash' : 'Wallet · ${pkr(wallet)}'),
-                      selected: payment == m,
-                      onSelected: (_) => setState(() => payment = m),
+                  child: Text(
+                    promoMsg!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: discount > 0 ? AppColors.dark : AppColors.danger,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (m == PaymentMethod.cash) const SizedBox(width: 8),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  for (final m in PaymentMethod.values) ...[
+                    Expanded(
+                      child: ChoiceChip(
+                        avatar: Icon(
+                          m == PaymentMethod.cash ? Icons.payments_outlined : Icons.account_balance_wallet_outlined,
+                          size: 18,
+                        ),
+                        label: Text(m == PaymentMethod.cash ? 'Cash' : 'Wallet · ${pkr(wallet)}'),
+                        selected: payment == m,
+                        onSelected: (_) => setState(() => payment = m),
+                      ),
+                    ),
+                    if (m == PaymentMethod.cash) const SizedBox(width: 8),
+                  ],
                 ],
-              ]),
+              ),
               if (payment == PaymentMethod.wallet)
                 Align(
                   alignment: Alignment.centerRight,
@@ -495,6 +554,12 @@ class _PassengerHomeState extends State<PassengerHome> {
     );
   }
 
+  /// Map ke beech wali jagah ke sab se qareeb pickup point.
+  static Place _nearestPlace(List<Place> places, LatLng p) {
+    const d = Distance();
+    return places.reduce((a, b) => d.as(LengthUnit.Meter, a.point, p) <= d.as(LengthUnit.Meter, b.point, p) ? a : b);
+  }
+
   static String _when(DateTime t) {
     final now = DateTime.now();
     final day = t.day == now.day && t.month == now.month
@@ -529,14 +594,19 @@ class _PassengerHomeState extends State<PassengerHome> {
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(vehicleIcon(t), size: 22),
-            Text(t.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            Text(price == null ? t.description : pkr(price),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(vehicleIcon(t), size: 22),
+              Text(t.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              Text(
+                price == null ? t.description : pkr(price),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: AppColors.muted)),
-          ]),
+                style: const TextStyle(fontSize: 11, color: AppColors.muted),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -551,15 +621,19 @@ class _PassengerHomeState extends State<PassengerHome> {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(children: [
-            Icon(icon, size: icon == Icons.circle ? 12 : 20, color: color),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(text,
+          child: Row(
+            children: [
+              Icon(icon, size: icon == Icons.circle ? 12 : 20, color: color),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  text,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 16, color: placeholder ? AppColors.muted : AppColors.dark)),
-            ),
-          ]),
+                  style: TextStyle(fontSize: 16, color: placeholder ? AppColors.muted : AppColors.dark),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
