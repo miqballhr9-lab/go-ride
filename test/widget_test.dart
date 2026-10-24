@@ -341,4 +341,20 @@ void main() {
     expect(store.login(AppStore.demoDriverPhone), LoginResult.newUser);
     store.dispose();
   });
+
+  test('Rickshaw and Comfort fares sit between the other city rides; popular city to city routes', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.passenger);
+    final a = AppStore.places[0], b = AppStore.places[4];
+    int f(VehicleType t) => store.suggestedFare(t, a, b);
+    expect(f(VehicleType.moto), lessThan(f(VehicleType.rickshaw)));
+    expect(f(VehicleType.rickshaw), lessThan(f(VehicleType.mini)));
+    expect(f(VehicleType.ac), lessThan(f(VehicleType.comfort)));
+    expect(ServiceType.ride.vehicles, containsAll([VehicleType.rickshaw, VehicleType.comfort]));
+    final routes = store.popularRoutes('Lahore');
+    expect(routes.first.$1.name, 'Gujranwala'); // sab se qareeb pehle
+    expect(routes.map((r) => r.$1.name), containsAll(['Faisalabad', 'Islamabad', 'Karachi']));
+    expect(routes.every((r) => r.$3 > 0), isTrue);
+    store.dispose();
+  });
 }

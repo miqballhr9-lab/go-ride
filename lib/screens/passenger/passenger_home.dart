@@ -40,8 +40,12 @@ class _PassengerHomeState extends State<PassengerHome> {
     if (!mounted) return;
     final near = loc != null && const Distance().as(LengthUnit.Kilometer, loc, city.center) < 60;
     if (!near) {
-      showSnack(context,
-          loc == null ? 'Could not get your location. Showing ${city.name}.' : 'You are outside ${city.name}. Showing the city centre.');
+      showSnack(
+        context,
+        loc == null
+            ? 'Could not get your location. Showing ${city.name}.'
+            : 'You are outside ${city.name}. Showing the city centre.',
+      );
     }
     final target = near ? loc : city.center;
     setState(() {
@@ -51,6 +55,7 @@ class _PassengerHomeState extends State<PassengerHome> {
     });
     _refreshFare();
   }
+
   VehicleType type = VehicleType.mini;
   PaymentMethod payment = PaymentMethod.cash;
   ParcelDetails? parcel;
@@ -135,7 +140,14 @@ class _PassengerHomeState extends State<PassengerHome> {
     if (s != null) fareCtrl.text = '$s';
   }
 
+  final _tabKeys = {for (final s in ServiceType.values) s: GlobalKey()};
+
   void _setService(ServiceType s) {
+    // Chuna hua tab nazar mein aa jaye (Groceries aakhir mein hai).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _tabKeys[s]!.currentContext;
+      if (ctx != null) Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 250), alignment: 0.5);
+    });
     setState(() {
       service = s;
       error = null;
@@ -362,6 +374,7 @@ class _PassengerHomeState extends State<PassengerHome> {
         children: [
           for (final s in ServiceType.values)
             Padding(
+              key: _tabKeys[s],
               padding: const EdgeInsets.only(right: 2),
               child: GestureDetector(
                 onTap: () => _setService(s),
@@ -429,15 +442,92 @@ class _PassengerHomeState extends State<PassengerHome> {
               ],
               SizedBox(
                 height: 74,
-                child: Row(
+                // inDrive jaisa: gariyan side pe scroll, City mein aakhir pe "Go to the City".
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
                   children: [
                     for (final t in service.vehicles) ...[
-                      Expanded(child: _typeTile(store, t)),
-                      if (t != service.vehicles.last) const SizedBox(width: 8),
+                      SizedBox(width: service.vehicles.length > 3 ? 112 : 160, child: _typeTile(store, t)),
+                      const SizedBox(width: 8),
                     ],
+                    if (service == ServiceType.ride)
+                      SizedBox(
+                        width: 128,
+                        child: Material(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => _setService(ServiceType.intercity),
+                            child: const Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.location_city, size: 22, color: AppColors.dark),
+                                  Text('Go to the City →', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
+              if (service == ServiceType.groceries) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 92,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      for (final (name, icon, items, budget) in groceryCategories)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: SizedBox(
+                            width: 104,
+                            child: Material(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(14),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () async {
+                                  final g = await editGrocery(
+                                    context,
+                                    grocery,
+                                    preset: GroceryDetails(items: items, budget: budget),
+                                  );
+                                  if (g != null) setState(() => grocery = g);
+                                  _refreshFare();
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        icon,
+                                        size: 30,
+                                        color: name == 'Flash Deal' ? AppColors.danger : AppColors.brand,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        name,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               _tile(
                 service == ServiceType.groceries ? Icons.storefront_outlined : Icons.circle,
@@ -618,6 +708,44 @@ class _PassengerHomeState extends State<PassengerHome> {
                   ServiceType.groceries => 'Find a shopper',
                 }),
               ),
+              if (service == ServiceType.ride && to == null) ...[
+                const SizedBox(height: 20),
+                InkWell(
+                  onTap: () => _setService(ServiceType.intercity),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.public, color: AppColors.dark),
+                      SizedBox(width: 8),
+                      Text('City to City', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                      Icon(Icons.chevron_right),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 150,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      for (final (dest, time, fare) in store.popularRoutes(store.currentCity.name))
+                        Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: _RouteCard(
+                            from: store.currentCity.name,
+                            to: dest.name,
+                            time: time,
+                            fare: fare,
+                            onTap: () {
+                              _setService(ServiceType.intercity);
+                              setState(() => to = dest);
+                              _refreshFare();
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -709,6 +837,80 @@ class _PassengerHomeState extends State<PassengerHome> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Groceries ki categories (inDrive jaisi), har ek ke aam saman aur andazan budget.
+const groceryCategories = [
+  ('Flash Deal', Icons.local_offer, ['Cooking oil 5 L (deal)', 'Basmati rice 5 kg (deal)'], 4500),
+  ('Fruits & Vegetables', Icons.eco, ['Bananas 1 dozen', 'Tomatoes 1 kg', 'Onions 2 kg', 'Potatoes 2 kg'], 1200),
+  ('Chicken & Meat', Icons.set_meal, ['Chicken 1 kg', 'Beef boneless 1 kg'], 2400),
+  ('Dairy & Eggs', Icons.egg_outlined, ['Milk 1.5 L', 'Yogurt 1 kg', 'Eggs 1 dozen', 'Butter'], 1500),
+  ('Bakery', Icons.bakery_dining, ['Bread', 'Rusk', 'Bun pack'], 500),
+  ('Household', Icons.cleaning_services_outlined, ['Dishwashing liquid', 'Detergent 1 kg', 'Tissue rolls'], 1600),
+  ('Baby care', Icons.child_friendly_outlined, ['Diapers', 'Baby wipes', 'Formula milk'], 4000),
+];
+
+/// "Lahore — Gujranwala · From 3900 PKR" jaisa card.
+class _RouteCard extends StatelessWidget {
+  final String from;
+  final String to;
+  final Duration time;
+  final int fare;
+  final VoidCallback onTap;
+  const _RouteCard({required this.from, required this.to, required this.time, required this.fare, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final h = time.inHours, m = time.inMinutes % 60;
+    return SizedBox(
+      width: 200,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 90,
+              decoration: BoxDecoration(color: AppColors.dark, borderRadius: BorderRadius.circular(16)),
+              child: Stack(
+                children: [
+                  const Positioned(
+                    left: 14,
+                    top: 14,
+                    child: Icon(Icons.location_city, size: 40, color: AppColors.brand),
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.ink,
+                        borderRadius: BorderRadius.only(topLeft: Radius.circular(12), bottomRight: Radius.circular(16)),
+                      ),
+                      child: Text(
+                        h > 0 ? '$h hour${h > 1 ? 's' : ''}${m >= 30 ? ' +' : ''}' : '$m min',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$from — $to',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+            Text('From ${pkr(fare)}', style: const TextStyle(color: AppColors.muted)),
+          ],
         ),
       ),
     );

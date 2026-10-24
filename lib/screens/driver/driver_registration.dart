@@ -134,8 +134,8 @@ class _DriverRegistrationState extends State<DriverRegistration> {
             Text(
               type.isFreight
                   ? 'You will receive freight requests (${type.description}).'
-                  : type == VehicleType.ac
-                      ? 'You will receive ride requests.'
+                  : (type == VehicleType.ac || type == VehicleType.comfort || type == VehicleType.rickshaw)
+                      ? 'You will receive city ride requests${type == VehicleType.rickshaw ? '' : ' and city to city trips'}.'
                       : 'You will receive city ride, courier and grocery requests.',
               style: const TextStyle(fontSize: 12, color: AppColors.muted),
             ),
@@ -146,6 +146,8 @@ class _DriverRegistrationState extends State<DriverRegistration> {
                   labelText: 'Make and model',
                   hintText: switch (type) {
                     VehicleType.moto => 'Honda CD 70',
+                    VehicleType.rickshaw => 'Sazgar CNG Rickshaw',
+                    VehicleType.comfort => 'Honda Civic',
                     VehicleType.pickup => 'Suzuki Ravi',
                     VehicleType.shehzore => 'Hyundai Shehzore',
                     VehicleType.truck => 'Mazda T3500',
@@ -170,7 +172,11 @@ class _DriverRegistrationState extends State<DriverRegistration> {
                   decoration: const InputDecoration(labelText: 'Year', hintText: '2018'),
                   validator: (v) {
                     final y = int.tryParse(v ?? '');
-                    final minYear = type == VehicleType.ac ? 2012 : 2005;
+                    final minYear = switch (type) {
+                      VehicleType.comfort => 2018,
+                      VehicleType.ac => 2012,
+                      _ => 2005,
+                    };
                     if (y == null || y > DateTime.now().year) return 'Enter a valid year';
                     if (y < minYear) return '$minYear or newer';
                     return null;

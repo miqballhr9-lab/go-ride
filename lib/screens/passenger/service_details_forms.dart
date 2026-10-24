@@ -196,12 +196,21 @@ class _FreightFormState extends State<_FreightForm> {
 
 
 /// Groceries: saman ki list aur andazan budget.
-Future<GroceryDetails?> editGrocery(BuildContext context, GroceryDetails? current) {
+Future<GroceryDetails?> editGrocery(BuildContext context, GroceryDetails? current, {GroceryDetails? preset}) {
   return showModalBottomSheet<GroceryDetails>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _GroceryForm(current: current),
+    // Category chuni ho to uska saman pehle se list mein (purani list ke saath).
+    builder: (_) => _GroceryForm(
+      current: preset == null
+          ? current
+          : GroceryDetails(
+              items: [...?current?.items, ...preset.items.where((i) => !(current?.items.contains(i) ?? false))],
+              budget: (current?.budget ?? 0) + preset.budget,
+              note: current?.note ?? '',
+            ),
+    ),
   );
 }
 

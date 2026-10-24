@@ -330,9 +330,45 @@ class AppStore extends ChangeNotifier {
   City get currentCity => cityOf(currentUser?.city);
   FareSettings get settings => currentCity.settings;
 
-  /// Intercity ke liye doosre sheher.
-  List<Place> intercityDestinations(String fromCity) =>
-      [for (final c in cityData.values) if (c.name != fromCity) c.asPlace];
+  /// Qareeb ke sheher jahan City to City ja sakte hain (wahan app abhi nahi chalti, sirf manzil).
+  static const _nearbyCities = {
+    'Lahore': [
+      Place('Gujranwala', LatLng(32.1877, 74.1945)),
+      Place('Faisalabad', LatLng(31.4504, 73.1350)),
+      Place('Sialkot', LatLng(32.4945, 74.5229)),
+      Place('Multan', LatLng(30.1575, 71.5249)),
+    ],
+    'Karachi': [
+      Place('Hyderabad', LatLng(25.3960, 68.3578)),
+      Place('Sukkur', LatLng(27.7052, 68.8574)),
+    ],
+    'Islamabad': [
+      Place('Murree', LatLng(33.9070, 73.3943)),
+      Place('Peshawar', LatLng(34.0151, 71.5249)),
+      Place('Abbottabad', LatLng(34.1688, 73.2215)),
+    ],
+  };
+
+  /// Intercity ke liye doosre sheher: pehle qareeb wale, phir baqi bare sheher.
+  List<Place> intercityDestinations(String fromCity) => [
+        ...?_nearbyCities[fromCity],
+        for (final c in cityData.values)
+          if (c.name != fromCity) c.asPlace,
+      ];
+
+  /// Home screen pe "City to City" ke mashhoor raaste: manzil, andazan waqt, kam se kam kiraya.
+  List<(Place, Duration, int)> popularRoutes(String fromCity) {
+    final from = cityOf(fromCity).asPlace;
+    return [
+      for (final to in intercityDestinations(fromCity))
+        (
+          to,
+          // Sarak ka raasta seedhi lakeer se ~30% lamba, ~70 km/h
+          Duration(minutes: (const Distance().as(LengthUnit.Kilometer, from.point, to.point) * 1.3 / 70 * 60).round()),
+          lowestAllowedFare(VehicleType.mini, from, to, city: fromCity, service: ServiceType.intercity),
+        ),
+    ]..sort((a, b) => a.$2.compareTo(b.$2));
+  }
 
   /// Mashwara kiraya (PKR): base + per km, kam se kam minimum.
   /// Parcel ke size, freight ke mazdooron aur airport ka kharcha upar se.
@@ -1340,7 +1376,7 @@ class AppStore extends ChangeNotifier {
     final pool = grocery != null && c.stores.isNotEmpty ? c.stores : c.places;
     final from = pool[_rand.nextInt(pool.length)];
     // Kabhi kabhi doosre sheher ki (intercity) request, kal ke liye.
-    final intercity = (type == VehicleType.mini || type == VehicleType.ac) && _rand.nextDouble() < 0.12;
+    final intercity = ServiceType.intercity.vehicles.contains(type) && _rand.nextDouble() < 0.12;
     Place to;
     if (intercity) {
       service = ServiceType.intercity;
@@ -1451,7 +1487,9 @@ class AppStore extends ChangeNotifier {
     const cars = {
       VehicleType.moto: ['Honda CD 70', 'Yamaha YBR 125', 'Suzuki GS 150'],
       VehicleType.mini: ['Suzuki Alto', 'Suzuki Wagon R', 'Suzuki Cultus'],
+      VehicleType.rickshaw: ['Sazgar CNG Rickshaw', 'New Asia Rickshaw', 'Siwa Rickshaw'],
       VehicleType.ac: ['Toyota Corolla', 'Honda City', 'Toyota Yaris'],
+      VehicleType.comfort: ['Honda Civic', 'Toyota Corolla Altis', 'Hyundai Elantra'],
       VehicleType.pickup: ['Suzuki Ravi', 'Suzuki Bolan pickup', 'Changan pickup'],
       VehicleType.shehzore: ['Hyundai Shehzore', 'Kia Bongo', 'JAC X200'],
       VehicleType.truck: ['Mazda T3500', 'Isuzu NKR', 'Hino 300'],

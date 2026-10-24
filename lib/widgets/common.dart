@@ -46,7 +46,9 @@ IconData serviceIcon(ServiceType s) => switch (s) {
 
 IconData vehicleIcon(VehicleType t) => switch (t) {
       VehicleType.moto => Icons.two_wheeler,
+      VehicleType.rickshaw => Icons.electric_rickshaw,
       VehicleType.mini || VehicleType.ac => Icons.directions_car,
+      VehicleType.comfort => Icons.directions_car_filled,
       _ => Icons.local_shipping,
     };
 

@@ -27,13 +27,15 @@ extension RideStatusLabel on RideStatus {
       this != RideStatus.completed && this != RideStatus.cancelled;
 }
 
-enum VehicleType { moto, mini, ac, pickup, shehzore, truck }
+enum VehicleType { moto, rickshaw, mini, ac, comfort, pickup, shehzore, truck }
 
 extension VehicleTypeInfo on VehicleType {
   String get label => switch (this) {
         VehicleType.moto => 'Moto',
+        VehicleType.rickshaw => 'Rickshaw',
         VehicleType.mini => 'Ride Mini',
-        VehicleType.ac => 'Ride AC',
+        VehicleType.ac => 'Ride A/C',
+        VehicleType.comfort => 'Comfort',
         VehicleType.pickup => 'Pickup',
         VehicleType.shehzore => 'Shehzore',
         VehicleType.truck => 'Mazda truck',
@@ -41,8 +43,10 @@ extension VehicleTypeInfo on VehicleType {
 
   String get description => switch (this) {
         VehicleType.moto => '1 passenger, fastest',
+        VehicleType.rickshaw => 'Up to 3 passengers, cheap',
         VehicleType.mini => 'Small car, budget',
-        VehicleType.ac => 'Comfortable car with AC',
+        VehicleType.ac => 'Car with AC',
+        VehicleType.comfort => 'Newer car, top drivers, AC',
         VehicleType.pickup => 'Up to 800 kg',
         VehicleType.shehzore => 'Up to 2 tons',
         VehicleType.truck => 'Up to 6 tons',
@@ -72,10 +76,10 @@ extension ServiceTypeInfo on ServiceType {
       };
 
   List<VehicleType> get vehicles => switch (this) {
-        ServiceType.ride => [VehicleType.moto, VehicleType.mini, VehicleType.ac],
+        ServiceType.ride => [VehicleType.moto, VehicleType.rickshaw, VehicleType.mini, VehicleType.ac, VehicleType.comfort],
         ServiceType.courier => [VehicleType.moto, VehicleType.mini],
         ServiceType.freight => [VehicleType.pickup, VehicleType.shehzore, VehicleType.truck],
-        ServiceType.intercity => [VehicleType.mini, VehicleType.ac],
+        ServiceType.intercity => [VehicleType.mini, VehicleType.ac, VehicleType.comfort],
         ServiceType.groceries => [VehicleType.moto, VehicleType.mini],
       };
 }
@@ -211,15 +215,18 @@ class FareSettings {
 
   factory FareSettings.defaults() => FareSettings(
         baseFare: {
-          VehicleType.moto: 60, VehicleType.mini: 120, VehicleType.ac: 170,
+          VehicleType.moto: 60, VehicleType.rickshaw: 90, VehicleType.mini: 120, VehicleType.ac: 170,
+          VehicleType.comfort: 230,
           VehicleType.pickup: 600, VehicleType.shehzore: 1200, VehicleType.truck: 2500,
         },
         perKm: {
-          VehicleType.moto: 22, VehicleType.mini: 40, VehicleType.ac: 52,
+          VehicleType.moto: 22, VehicleType.rickshaw: 30, VehicleType.mini: 40, VehicleType.ac: 52,
+          VehicleType.comfort: 68,
           VehicleType.pickup: 70, VehicleType.shehzore: 110, VehicleType.truck: 180,
         },
         minFare: {
-          VehicleType.moto: 100, VehicleType.mini: 200, VehicleType.ac: 280,
+          VehicleType.moto: 100, VehicleType.rickshaw: 150, VehicleType.mini: 200, VehicleType.ac: 280,
+          VehicleType.comfort: 380,
           VehicleType.pickup: 1000, VehicleType.shehzore: 2000, VehicleType.truck: 4000,
         },
         commissionPercent: 10,
