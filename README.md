@@ -11,8 +11,8 @@ For review, the login screen has one-tap buttons that open the **Passenger**, **
 - Profile editing, blocked accounts cannot log in
 - Separate passenger and driver ratings
 
-**Services**
-- Ride (Moto / Ride Mini / Ride AC), Courier (parcel with receiver details, size, fragile) and Freight (Pickup / Shehzore / Mazda truck with cargo, weight and loading helpers)
+**Services (like inDrive)**
+- City rides (Moto / Ride Mini / Ride AC), City to City, Couriers (parcel with receiver details, size, fragile), Freight (Pickup / Shehzore / Mazda truck with cargo, weight and loading helpers) and Groceries (pick a store, add a shopping list and budget; the driver buys and delivers)
 
 **Wallet and top-up**
 - Top up with JazzCash, Easypaisa, card (instant) or bank transfer (approved by the control office)

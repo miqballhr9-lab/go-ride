@@ -136,7 +136,7 @@ class _DriverRegistrationState extends State<DriverRegistration> {
                   ? 'You will receive freight requests (${type.description}).'
                   : type == VehicleType.ac
                       ? 'You will receive ride requests.'
-                      : 'You will receive ride and courier requests.',
+                      : 'You will receive city ride, courier and grocery requests.',
               style: const TextStyle(fontSize: 12, color: AppColors.muted),
             ),
             const SizedBox(height: 12),

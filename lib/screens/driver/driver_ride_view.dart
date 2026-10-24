@@ -27,8 +27,9 @@ class _DriverRideViewState extends State<DriverRideView> {
     final p = store.userById(ride.passengerId);
 
     final title = switch (ride.status) {
-      RideStatus.driverComing => 'Go to pickup',
-      RideStatus.driverArrived => 'Waiting for passenger',
+      RideStatus.driverComing => ride.service == ServiceType.groceries ? 'Go to ${ride.from.name}' : 'Go to pickup',
+      RideStatus.driverArrived =>
+        ride.service == ServiceType.groceries ? 'Buy the items on the list' : 'Waiting for passenger',
       RideStatus.inProgress => 'Heading to destination',
       RideStatus.completed =>
         ride.payment == PaymentMethod.wallet ? '${pkr(fare)} paid to your wallet' : 'Collect ${pkr(fare)} cash',

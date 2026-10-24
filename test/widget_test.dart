@@ -276,4 +276,24 @@ void main() {
     expect(intercity, lessThan(ride));
     store.dispose();
   });
+
+  test('Groceries: pickup is a store, fare includes the shopping fee, driver sees the list', () {
+    final store = AppStore();
+    store.demoLogin(AppMode.passenger);
+    final city = store.currentCity;
+    expect(city.stores, isNotEmpty);
+    final shop = city.stores.first, home = city.places[3];
+    const list = GroceryDetails(items: ['Milk', 'Bread'], budget: 600);
+    final withShopping = store.suggestedFare(VehicleType.moto, shop, home, grocery: list, service: ServiceType.groceries);
+    final plain = store.suggestedFare(VehicleType.moto, shop, home, service: ServiceType.groceries);
+    expect(withShopping, plain + groceryShoppingFee);
+    expect(
+        store.createRequest(VehicleType.moto, shop, home, withShopping, '',
+            service: ServiceType.groceries, grocery: list),
+        isNull);
+    expect(store.passengerRide!.grocery!.items, ['Milk', 'Bread']);
+    expect(ServiceType.values.map((s) => s.label),
+        containsAll(['City', 'City to City', 'Couriers', 'Freight', 'Groceries']));
+    store.dispose();
+  });
 }

@@ -38,6 +38,7 @@ IconData serviceIcon(ServiceType s) => switch (s) {
       ServiceType.courier => Icons.inventory_2_outlined,
       ServiceType.freight => Icons.local_shipping_outlined,
       ServiceType.intercity => Icons.route,
+      ServiceType.groceries => Icons.local_grocery_store_outlined,
     };
 
 IconData vehicleIcon(VehicleType t) => switch (t) {
@@ -54,9 +55,15 @@ class ServiceInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ride.parcel, f = ride.freight;
-    if (p == null && f == null) return const SizedBox.shrink();
-    final lines = p != null
+    final p = ride.parcel, f = ride.freight, g = ride.grocery;
+    if (p == null && f == null && g == null) return const SizedBox.shrink();
+    final lines = g != null
+        ? [
+            'Shopping list: ${g.items.join(', ')}',
+            'Items budget ${pkr(g.budget)} · paid to the driver on delivery',
+            if (g.note.isNotEmpty) 'Note: ${g.note}',
+          ]
+        : p != null
         ? [
             'Parcel: ${p.description} (${p.size.label}${p.fragile ? ', fragile' : ''})',
             'Receiver: ${p.receiverName}${showReceiverPhone ? ' · ${p.receiverPhone}' : ''}',

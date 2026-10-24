@@ -58,14 +58,15 @@ extension VehicleTypeInfo on VehicleType {
 }
 
 /// inDrive jaisi services: sawari, parcel (courier) aur saman (freight).
-enum ServiceType { ride, courier, freight, intercity }
+enum ServiceType { ride, intercity, courier, freight, groceries }
 
 extension ServiceTypeInfo on ServiceType {
   String get label => switch (this) {
-        ServiceType.ride => 'Ride',
-        ServiceType.courier => 'Courier',
+        ServiceType.ride => 'City',
+        ServiceType.courier => 'Couriers',
         ServiceType.freight => 'Freight',
-        ServiceType.intercity => 'Intercity',
+        ServiceType.intercity => 'City to City',
+        ServiceType.groceries => 'Groceries',
       };
 
   List<VehicleType> get vehicles => switch (this) {
@@ -73,6 +74,7 @@ extension ServiceTypeInfo on ServiceType {
         ServiceType.courier => [VehicleType.moto, VehicleType.mini],
         ServiceType.freight => [VehicleType.pickup, VehicleType.shehzore, VehicleType.truck],
         ServiceType.intercity => [VehicleType.mini, VehicleType.ac],
+        ServiceType.groceries => [VehicleType.moto, VehicleType.mini],
       };
 }
 
@@ -121,6 +123,17 @@ class FreightDetails {
 }
 
 const helperFee = 500;
+
+/// Groceries: driver store se saman khareed kar lata hai. Saman ke paise passenger delivery pe deta hai.
+class GroceryDetails {
+  final List<String> items;
+  final int budget; // saman ka andazan kharcha (delivery fee ke ilawa)
+  final String note;
+  const GroceryDetails({required this.items, required this.budget, this.note = ''});
+}
+
+/// Store se saman khareedne ki fees, delivery ke kiraye mein shamil.
+const groceryShoppingFee = 100;
 
 enum PaymentMethod { cash, wallet }
 
@@ -223,6 +236,7 @@ class City {
   final String name;
   final LatLng center;
   final List<Place> places;
+  final List<Place> stores; // groceries ke liye
   FareSettings settings;
   final Set<ServiceType> services;
   int airportFee;
@@ -231,6 +245,7 @@ class City {
     required this.name,
     required this.center,
     required this.places,
+    this.stores = const [],
     required this.settings,
     Set<ServiceType>? services,
     this.airportFee = 150,
@@ -493,6 +508,7 @@ class RideRequest {
   final PaymentMethod payment;
   final ParcelDetails? parcel;
   final FreightDetails? freight;
+  final GroceryDetails? grocery;
   final Place from;
   final Place to;
   int fare; // passenger ka bataya hua kiraya
@@ -527,6 +543,7 @@ class RideRequest {
     this.payment = PaymentMethod.cash,
     this.parcel,
     this.freight,
+    this.grocery,
     required this.from,
     required this.to,
     required this.fare,

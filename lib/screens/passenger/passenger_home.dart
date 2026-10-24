@@ -33,6 +33,7 @@ class _PassengerHomeState extends State<PassengerHome> {
   PaymentMethod payment = PaymentMethod.cash;
   ParcelDetails? parcel;
   FreightDetails? freight;
+  GroceryDetails? grocery;
   final fareCtrl = TextEditingController();
   final commentCtrl = TextEditingController();
   String? error;
@@ -64,6 +65,7 @@ class _PassengerHomeState extends State<PassengerHome> {
           to!,
           parcel: service == ServiceType.courier ? parcel : null,
           freight: service == ServiceType.freight ? freight : null,
+          grocery: service == ServiceType.groceries ? grocery : null,
           service: service,
         )
       : null;
@@ -121,6 +123,10 @@ class _PassengerHomeState extends State<PassengerHome> {
         to = null;
       }
       if (s == ServiceType.freight) scheduledAt = null;
+      // Groceries ki pickup ek store hoti hai; wapas aane pe aam jagah.
+      final city = StoreScope.of(context).currentCity;
+      if (s == ServiceType.groceries && !city.stores.contains(from)) from = city.stores.first;
+      if (s != ServiceType.groceries && city.stores.contains(from)) from = city.places.first;
     });
     _refreshFare();
   }
@@ -143,7 +149,13 @@ class _PassengerHomeState extends State<PassengerHome> {
   }
 
   void _pickFrom() async {
-    final p = await pickPlace(context, 'Pickup location', exclude: to);
+    final groceries = service == ServiceType.groceries;
+    final p = await pickPlace(
+      context,
+      groceries ? 'Which store?' : 'Pickup location',
+      exclude: to,
+      places: groceries ? StoreScope.of(context).currentCity.stores : null,
+    );
     if (p == null) return;
     setState(() => from = p);
     _refreshFare();
@@ -156,6 +168,9 @@ class _PassengerHomeState extends State<PassengerHome> {
     } else if (service == ServiceType.freight) {
       final f = await editFreight(context, freight, type);
       if (f != null) setState(() => freight = f);
+    } else if (service == ServiceType.groceries) {
+      final g = await editGrocery(context, grocery);
+      if (g != null) setState(() => grocery = g);
     }
     _refreshFare();
   }
@@ -172,6 +187,10 @@ class _PassengerHomeState extends State<PassengerHome> {
       setState(() => error = 'Add parcel details');
       return;
     }
+    if (service == ServiceType.groceries && grocery == null) {
+      setState(() => error = 'Add your shopping list');
+      return;
+    }
     if (service == ServiceType.freight && freight == null) {
       setState(() => error = 'Add cargo details');
       return;
@@ -186,7 +205,8 @@ class _PassengerHomeState extends State<PassengerHome> {
     }
     final p = service == ServiceType.courier ? parcel : null;
     final f = service == ServiceType.freight ? freight : null;
-    final minFare = store.lowestAllowedFare(type, from!, to!, parcel: p, freight: f, service: service);
+    final g = service == ServiceType.groceries ? grocery : null;
+    final minFare = store.lowestAllowedFare(type, from!, to!, parcel: p, freight: f, grocery: g, service: service);
     if (fare == null || fare < minFare) {
       setState(() => error = 'Minimum fare for this trip is ${pkr(minFare)}');
       return;
@@ -201,6 +221,7 @@ class _PassengerHomeState extends State<PassengerHome> {
       payment: payment,
       parcel: p,
       freight: f,
+      grocery: g,
       scheduledAt: scheduledAt,
       seats: service == ServiceType.intercity ? seats : 1,
       promo: promoCtrl.text,
@@ -230,7 +251,7 @@ class _PassengerHomeState extends State<PassengerHome> {
                     from: from,
                     to: to,
                     // inDrive jaisa: manzil chunne se pehle map ghuma kar pickup chuno.
-                    centerPin: to == null,
+                    centerPin: to == null && service != ServiceType.groceries,
                     onCenterChanged: (p) {
                       final nearest = _nearestPlace(store.currentCity.places, p);
                       if (nearest != from) setState(() => from = nearest);
@@ -295,36 +316,34 @@ class _PassengerHomeState extends State<PassengerHome> {
       borderRadius: BorderRadius.circular(30),
       boxShadow: const [BoxShadow(blurRadius: 8, color: Colors.black12)],
     ),
-    child: Row(
-      children: [
-        for (final s in ServiceType.values)
-          Expanded(
-            child: GestureDetector(
-              onTap: () => _setService(s),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: s == service ? AppColors.brand : Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(serviceIcon(s), size: 16),
-                    const SizedBox(width: 3),
-                    Flexible(
-                      child: Text(
-                        s.label,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                      ),
-                    ),
-                  ],
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final s in ServiceType.values)
+            Padding(
+              padding: const EdgeInsets.only(right: 2),
+              child: GestureDetector(
+                onTap: () => _setService(s),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: s == service ? AppColors.brand : Colors.transparent,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(serviceIcon(s), size: 16),
+                      const SizedBox(width: 3),
+                      Text(s.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     ),
   );
 
@@ -380,7 +399,12 @@ class _PassengerHomeState extends State<PassengerHome> {
                 ),
               ),
               const SizedBox(height: 10),
-              _tile(Icons.circle, AppColors.brand, from?.name ?? 'Pickup', _pickFrom),
+              _tile(
+                service == ServiceType.groceries ? Icons.storefront_outlined : Icons.circle,
+                AppColors.brand,
+                from?.name ?? 'Pickup',
+                _pickFrom,
+              ),
               const SizedBox(height: 8),
               _tile(
                 service == ServiceType.intercity ? Icons.location_city : Icons.circle,
@@ -437,14 +461,20 @@ class _PassengerHomeState extends State<PassengerHome> {
                   ],
                 ),
               ],
-              if (service == ServiceType.courier || service == ServiceType.freight) ...[
+              if (service == ServiceType.courier ||
+                  service == ServiceType.freight ||
+                  service == ServiceType.groceries) ...[
                 const SizedBox(height: 8),
                 _tile(
-                  service == ServiceType.courier ? Icons.inventory_2_outlined : Icons.local_shipping_outlined,
+                  serviceIcon(service),
                   AppColors.dark,
                   _detailsSummary(),
                   _editDetails,
-                  placeholder: (service == ServiceType.courier ? parcel : freight) == null,
+                  placeholder: switch (service) {
+                    ServiceType.courier => parcel == null,
+                    ServiceType.freight => freight == null,
+                    _ => grocery == null,
+                  },
                 ),
               ],
               const SizedBox(height: 8),
@@ -545,6 +575,7 @@ class _PassengerHomeState extends State<PassengerHome> {
                   ServiceType.courier => 'Find a courier',
                   ServiceType.freight => 'Find a vehicle',
                   ServiceType.intercity => 'Find an intercity driver',
+                  ServiceType.groceries => 'Find a shopper',
                 }),
               ),
             ],
@@ -572,6 +603,10 @@ class _PassengerHomeState extends State<PassengerHome> {
     if (service == ServiceType.courier) {
       final p = parcel;
       return p == null ? 'Add parcel details' : '${p.size.label} · ${p.description} → ${p.receiverName}';
+    }
+    if (service == ServiceType.groceries) {
+      final g = grocery;
+      return g == null ? 'Add your shopping list' : '${g.items.length} items · budget ${pkr(g.budget)}';
     }
     final f = freight;
     return f == null ? 'Add cargo details' : '${f.cargo} · ${f.weightKg} kg · ${f.helpers} helpers';

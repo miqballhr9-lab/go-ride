@@ -330,9 +330,11 @@ class AdminDashboard extends StatelessWidget {
       ('Open SOS alerts', '${store.openAlerts}', 'Need action now', AdminPage.safety),
       ('Pending top-ups', '${store.pendingTopUps.length}', 'Bank transfers to check', AdminPage.payments),
       (
-        'Courier · Freight (24 h)',
-        '${store.ridesToday.where((r) => r.service == ServiceType.courier).length} · ${store.ridesToday.where((r) => r.service == ServiceType.freight).length}',
-        'Parcel and cargo orders',
+        'Couriers · Freight · Groceries (24 h)',
+        [ServiceType.courier, ServiceType.freight, ServiceType.groceries]
+            .map((sv) => store.ridesToday.where((r) => r.service == sv).length)
+            .join(' · '),
+        'Delivery orders',
         AdminPage.rides,
       ),
       ('Users', '${store.users.length}', 'All accounts', AdminPage.passengers),

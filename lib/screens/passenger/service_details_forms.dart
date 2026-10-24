@@ -193,3 +193,100 @@ class _FreightFormState extends State<_FreightForm> {
     );
   }
 }
+
+
+/// Groceries: saman ki list aur andazan budget.
+Future<GroceryDetails?> editGrocery(BuildContext context, GroceryDetails? current) {
+  return showModalBottomSheet<GroceryDetails>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => _GroceryForm(current: current),
+  );
+}
+
+class _GroceryForm extends StatefulWidget {
+  final GroceryDetails? current;
+  const _GroceryForm({this.current});
+
+  @override
+  State<_GroceryForm> createState() => _GroceryFormState();
+}
+
+class _GroceryFormState extends State<_GroceryForm> {
+  late final items = TextEditingController(text: widget.current?.items.join('\n'));
+  late final budget = TextEditingController(text: widget.current?.budget.toString());
+  late final note = TextEditingController(text: widget.current?.note);
+  String? error;
+
+  @override
+  void dispose() {
+    items.dispose();
+    budget.dispose();
+    note.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('Shopping list', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text('The driver buys these items at the store and brings them to you.',
+              style: TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: items,
+            maxLines: 6,
+            minLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Items (one per line)',
+              hintText: 'Milk 2 L\nBread\nEggs 1 dozen',
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: budget,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Estimated cost of items',
+              prefixText: 'Rs  ',
+              helperText: 'You pay the actual item cost to the driver on delivery, plus the fare',
+              helperMaxLines: 2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: note,
+            decoration: const InputDecoration(labelText: 'Note for the shopper (optional)', hintText: 'Call me if something is out of stock'),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text(error!, style: const TextStyle(color: AppColors.danger)),
+          ],
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () {
+              final list = items.text.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+              final b = int.tryParse(budget.text.trim());
+              if (list.isEmpty || b == null || b <= 0) {
+                setState(() => error = 'Add at least one item and the estimated cost');
+                return;
+              }
+              if (b > 20000) {
+                setState(() => error = 'For orders above Rs 20,000 please split into smaller orders');
+                return;
+              }
+              Navigator.pop(context, GroceryDetails(items: list, budget: b, note: note.text.trim()));
+            },
+            child: const Text('Save'),
+          ),
+        ]),
+      ),
+    );
+  }
+}

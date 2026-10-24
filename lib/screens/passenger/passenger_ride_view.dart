@@ -76,7 +76,11 @@ class _PassengerRideViewState extends State<PassengerRideView> {
     final d = store.userById(offer.driverId);
     final v = d.driver!.vehicle;
 
+    final shop = ride.service == ServiceType.groceries;
     final (title, subtitle) = switch (ride.status) {
+      // Groceries: driver store jata hai, saman khareedta hai, phir lata hai.
+      RideStatus.driverComing when shop => ('Shopper is going to the store', ride.from.name),
+      RideStatus.driverArrived when shop => ('Shopper is buying your items', '${ride.grocery!.items.length} items at ${ride.from.name}'),
       RideStatus.driverComing => ride.scheduledAt != null
           ? ('Driver confirmed', 'Pickup on ${ride.scheduledAt!.day}/${ride.scheduledAt!.month} at ${hhmm(ride.scheduledAt!)}')
           : ('Driver is on the way', 'Arriving in ${offer.etaMinutes} min'),
@@ -88,8 +92,10 @@ class _PassengerRideViewState extends State<PassengerRideView> {
       RideStatus.completed => (
           ride.service == ServiceType.ride ? 'You have arrived' : 'Delivered',
           ride.payment == PaymentMethod.wallet
-              ? '${pkr(ride.passengerPays)} paid from your wallet'
-              : 'Please pay ${pkr(ride.passengerPays)} cash to the driver'
+              ? '${pkr(ride.passengerPays)} paid from your wallet${shop ? '. Pay the item cost to the driver' : ''}'
+              : shop
+                  ? 'Pay the item cost (about ${pkr(ride.grocery!.budget)}) plus ${pkr(ride.passengerPays)} fare'
+                  : 'Please pay ${pkr(ride.passengerPays)} cash to the driver'
         ),
       RideStatus.cancelled => ('Ride cancelled', ride.cancelReason ?? ''),
       RideStatus.searching => ('', ''),

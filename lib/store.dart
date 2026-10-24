@@ -217,11 +217,29 @@ class AppStore extends ChangeNotifier {
   static const cities = ['Lahore', 'Karachi', 'Islamabad'];
 
   late final Map<String, City> cityData = {
-    'Lahore': City(name: 'Lahore', center: cityCenter, places: places, settings: FareSettings.defaults()),
+    'Lahore': City(
+      name: 'Lahore',
+      center: cityCenter,
+      places: places,
+      settings: FareSettings.defaults(),
+      stores: const [
+        Place('Al-Fatah Gulberg', LatLng(31.5160, 74.3500)),
+        Place('Carrefour Emporium Mall', LatLng(31.4673, 74.2660)),
+        Place('Imtiaz Super Market Johar Town', LatLng(31.4690, 74.2780)),
+        Place('Metro Cash & Carry Thokar', LatLng(31.4730, 74.2420)),
+        Place('Hyperstar Fortress', LatLng(31.5300, 74.3640)),
+      ],
+    ),
     'Karachi': City(
       name: 'Karachi',
       center: const LatLng(24.8607, 67.0011),
       settings: FareSettings.defaults()..commissionPercent = 12,
+      stores: const [
+        Place('Imtiaz Super Market Bahadurabad', LatLng(24.8790, 67.0700)),
+        Place('Naheed Supermarket', LatLng(24.8760, 67.0640)),
+        Place('Chase Up Gulshan', LatLng(24.9200, 67.0950)),
+        Place('Carrefour Dolmen Clifton', LatLng(24.8022, 67.0300)),
+      ],
       places: const [
         Place('Clifton Beach', LatLng(24.7925, 67.0336)),
         Place('Dolmen Mall Clifton', LatLng(24.8022, 67.0300)),
@@ -240,6 +258,12 @@ class AppStore extends ChangeNotifier {
       center: const LatLng(33.6844, 73.0479),
       settings: FareSettings.defaults(),
       airportFee: 250,
+      stores: const [
+        Place('Al-Fatah F-7', LatLng(33.7200, 73.0560)),
+        Place('Carrefour Centaurus', LatLng(33.7077, 73.0500)),
+        Place('Esajees F-6', LatLng(33.7280, 73.0770)),
+        Place('Imtiaz Super Market G-9', LatLng(33.6870, 73.0330)),
+      ],
       places: const [
         Place('Faisal Mosque', LatLng(33.7295, 73.0372)),
         Place('Centaurus Mall', LatLng(33.7077, 73.0500)),
@@ -266,7 +290,11 @@ class AppStore extends ChangeNotifier {
   /// Mashwara kiraya (PKR): base + per km, kam se kam minimum.
   /// Parcel ke size, freight ke mazdooron aur airport ka kharcha upar se.
   int suggestedFare(VehicleType type, Place from, Place to,
-      {ParcelDetails? parcel, FreightDetails? freight, String? city, ServiceType service = ServiceType.ride}) {
+      {ParcelDetails? parcel,
+      FreightDetails? freight,
+      GroceryDetails? grocery,
+      String? city,
+      ServiceType service = ServiceType.ride}) {
     final c = cityOf(city ?? currentUser?.city);
     final st = c.settings;
     final km = const Distance().as(LengthUnit.Meter, from.point, to.point) / 1000;
@@ -274,16 +302,25 @@ class AppStore extends ChangeNotifier {
     final perKm = service == ServiceType.intercity ? st.perKm[type]! * 0.6 : st.perKm[type]!;
     final fare = st.baseFare[type]! + km * perKm;
     final airport = (from.isAirport || to.isAirport) ? c.airportFee : 0;
-    final extras = (parcel?.size.surcharge ?? 0) + (freight?.helpers ?? 0) * helperFee + airport;
+    final extras = (parcel?.size.surcharge ?? 0) +
+        (freight?.helpers ?? 0) * helperFee +
+        (grocery != null ? groceryShoppingFee : 0) +
+        airport;
     return max(st.minFare[type]!, (fare / 10).round() * 10) + extras;
   }
 
   /// inDrive ki tarah passenger mashwara kiraye se kam bhi offer kar sakta hai, magar had tak.
   int lowestAllowedFare(VehicleType type, Place from, Place to,
-          {ParcelDetails? parcel, FreightDetails? freight, String? city, ServiceType service = ServiceType.ride}) =>
+          {ParcelDetails? parcel,
+          FreightDetails? freight,
+          GroceryDetails? grocery,
+          String? city,
+          ServiceType service = ServiceType.ride}) =>
       max(
           cityOf(city ?? currentUser?.city).settings.minFare[type]!,
-          (suggestedFare(type, from, to, parcel: parcel, freight: freight, city: city, service: service) * 0.7 / 10)
+          (suggestedFare(type, from, to, parcel: parcel, freight: freight, grocery: grocery, city: city, service: service) *
+                      0.7 /
+                      10)
                   .round() *
               10);
 
@@ -328,6 +365,7 @@ class AppStore extends ChangeNotifier {
     PaymentMethod payment = PaymentMethod.cash,
     ParcelDetails? parcel,
     FreightDetails? freight,
+    GroceryDetails? grocery,
     DateTime? scheduledAt,
     int seats = 1,
     String promo = '',
@@ -360,6 +398,7 @@ class AppStore extends ChangeNotifier {
       payment: payment,
       parcel: parcel,
       freight: freight,
+      grocery: grocery,
       from: from,
       to: to,
       fare: fare,
@@ -1155,13 +1194,17 @@ class AppStore extends ChangeNotifier {
     final passengers = users.values.where((u) => u.isBot && u.driver == null).toList();
     final p = passengers[_rand.nextInt(passengers.length)];
     final c = cityOf(city);
-    final from = c.places[_rand.nextInt(c.places.length)];
-    var (service, parcel, freight) = _randomService(type);
+    var (service, parcel, freight, grocery) = _randomService(type);
+    // Groceries ki pickup store hoti hai.
+    final pool = grocery != null && c.stores.isNotEmpty ? c.stores : c.places;
+    final from = pool[_rand.nextInt(pool.length)];
     // Kabhi kabhi doosre sheher ki (intercity) request, kal ke liye.
     final intercity = (type == VehicleType.mini || type == VehicleType.ac) && _rand.nextDouble() < 0.12;
     Place to;
     if (intercity) {
       service = ServiceType.intercity;
+      parcel = null;
+      grocery = null;
       final others = intercityDestinations(city);
       to = others[_rand.nextInt(others.length)];
     } else {
@@ -1169,9 +1212,12 @@ class AppStore extends ChangeNotifier {
         to = c.places[_rand.nextInt(c.places.length)];
       } while (to == from);
     }
-    final suggested = suggestedFare(type, from, to, parcel: parcel, freight: freight, city: city, service: service);
+    final suggested = suggestedFare(type, from, to,
+        parcel: parcel, freight: freight, grocery: grocery, city: city, service: service);
     // Passenger aksar mashwara kiraye se thora kam offer karta hai.
-    final fare = max(lowestAllowedFare(type, from, to, parcel: parcel, freight: freight, city: city, service: service),
+    final fare = max(
+        lowestAllowedFare(type, from, to,
+            parcel: parcel, freight: freight, grocery: grocery, city: city, service: service),
         suggested - [0, 20, 50, 80][_rand.nextInt(4)]);
     final tomorrow = DateTime.now().add(const Duration(days: 1));
     rides.insert(
@@ -1186,6 +1232,7 @@ class AppStore extends ChangeNotifier {
         vehicleType: type,
         parcel: parcel,
         freight: freight,
+        grocery: grocery,
         payment: _rand.nextDouble() < 0.2 ? PaymentMethod.wallet : PaymentMethod.cash,
         from: from,
         to: to,
@@ -1200,7 +1247,15 @@ class AppStore extends ChangeNotifier {
   static const _cargo = ['Household furniture', 'Fridge and washing machine', 'Construction material', 'Shop stock (boxes)', 'Office shifting'];
   static const _parcels = ['Documents', 'Lunch box', 'Mobile phone', 'Clothes', 'Medicines', 'Gift box'];
 
-  (ServiceType, ParcelDetails?, FreightDetails?) _randomService(VehicleType type) {
+  static const _groceryLists = [
+    ['Milk 2 L', 'Bread', 'Eggs 1 dozen'],
+    ['Atta 10 kg', 'Cooking oil 3 L', 'Sugar 2 kg'],
+    ['Tomatoes 1 kg', 'Onions 2 kg', 'Potatoes 2 kg', 'Green chillies'],
+    ['Rice 5 kg', 'Daal chana 1 kg', 'Tea 450 g'],
+    ['Diapers', 'Baby wipes', 'Formula milk'],
+  ];
+
+  (ServiceType, ParcelDetails?, FreightDetails?, GroceryDetails?) _randomService(VehicleType type) {
     if (type.isFreight) {
       return (
         ServiceType.freight,
@@ -1210,9 +1265,20 @@ class AppStore extends ChangeNotifier {
           weightKg: (type.maxKg * (0.3 + _rand.nextDouble() * 0.6) / 50).round() * 50,
           helpers: _rand.nextInt(3),
         ),
+        null,
       );
     }
-    if ((type == VehicleType.moto || type == VehicleType.mini) && _rand.nextDouble() < 0.3) {
+    final roll = _rand.nextDouble();
+    if ((type == VehicleType.moto || type == VehicleType.mini) && roll < 0.15) {
+      final items = _groceryLists[_rand.nextInt(_groceryLists.length)];
+      return (
+        ServiceType.groceries,
+        null,
+        null,
+        GroceryDetails(items: items, budget: (items.length * (300 + _rand.nextInt(700)) / 50).round() * 50),
+      );
+    }
+    if ((type == VehicleType.moto || type == VehicleType.mini) && roll < 0.4) {
       return (
         ServiceType.courier,
         ParcelDetails(
@@ -1223,9 +1289,10 @@ class AppStore extends ChangeNotifier {
           fragile: _rand.nextDouble() < 0.2,
         ),
         null,
+        null,
       );
     }
-    return (ServiceType.ride, null, null);
+    return (ServiceType.ride, null, null, null);
   }
 
   void _seed() {
@@ -1296,12 +1363,13 @@ class AppStore extends ChangeNotifier {
     for (var i = 0; i < 40; i++) {
       final d = drivers[_rand.nextInt(drivers.length)];
       final p = passengers[_rand.nextInt(passengers.length)];
-      final from = places[_rand.nextInt(places.length)];
-      var to = places[_rand.nextInt(places.length)];
-      if (to == from) to = places[(places.indexOf(from) + 3) % places.length];
       final type = d.driver!.vehicle.type;
       final created = now.subtract(Duration(minutes: 30 + _rand.nextInt(60 * 23)));
-      final (service, parcel, freight) = _randomService(type);
+      final (service, parcel, freight, grocery) = _randomService(type);
+      final stores = cityOf('Lahore').stores;
+      final from = grocery != null ? stores[_rand.nextInt(stores.length)] : places[_rand.nextInt(places.length)];
+      var to = places[_rand.nextInt(places.length)];
+      if (to == from) to = places[(places.indexOf(to) + 3) % places.length];
       final r = RideRequest(
         id: _newId('R'),
         passengerId: p.id,
@@ -1309,9 +1377,10 @@ class AppStore extends ChangeNotifier {
         vehicleType: type,
         parcel: parcel,
         freight: freight,
+        grocery: grocery,
         from: from,
         to: to,
-        fare: suggestedFare(type, from, to, parcel: parcel, freight: freight),
+        fare: suggestedFare(type, from, to, parcel: parcel, freight: freight, grocery: grocery),
         createdAt: created,
       );
       r.acceptedOffer = Offer(
