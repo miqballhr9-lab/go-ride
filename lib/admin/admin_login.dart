@@ -4,6 +4,7 @@ import '../main.dart';
 import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../widgets/common.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -49,7 +50,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  const Text('MIK DRIVE', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Align(alignment: Alignment.centerLeft, child: MikLogo(size: 44)),
                   const Text('Control office', style: TextStyle(color: AppColors.muted)),
                   const SizedBox(height: 24),
                   TextField(controller: user, decoration: const InputDecoration(labelText: 'Username')),

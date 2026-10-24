@@ -11,6 +11,26 @@ import '../screens/wallet_screen.dart';
 import '../store.dart';
 import '../theme.dart';
 
+/// MIK ka logo (MIK Ledger wala), naam ke saath ya akela.
+class MikLogo extends StatelessWidget {
+  final double size;
+  final bool withName;
+  final Color nameColor;
+  const MikLogo({super.key, this.size = 48, this.withName = true, this.nameColor = AppColors.dark});
+
+  @override
+  Widget build(BuildContext context) {
+    final logo = Image.asset('assets/mik_logo.png', width: size, height: size, semanticLabel: 'MIK logo');
+    if (!withName) return logo;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      logo,
+      SizedBox(width: size * 0.25),
+      Text('MIK DRIVE',
+          style: TextStyle(fontSize: size * 0.5, fontWeight: FontWeight.w900, color: nameColor, letterSpacing: 0.5)),
+    ]);
+  }
+}
+
 String pkr(int amount) => amount < 0 ? '-Rs ${-amount}' : 'Rs $amount';
 
 IconData serviceIcon(ServiceType s) => switch (s) {

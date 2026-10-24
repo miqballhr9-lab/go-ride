@@ -4,6 +4,7 @@ import '../main.dart';
 import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../widgets/common.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -105,15 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     if (step == _Step.phone) ...[
                       const SizedBox(height: 40),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.brand,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text('MIK DRIVE',
-                            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
-                      ),
+                      const MikLogo(size: 56),
                       const SizedBox(height: 32),
                     ],
                     Text(_title,

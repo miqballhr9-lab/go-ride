@@ -138,11 +138,8 @@ class _AdminShellState extends State<AdminShell> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
-              child: Text(
-                'MIK DRIVE',
-                style: TextStyle(color: AppColors.brand, fontSize: 22, fontWeight: FontWeight.w900),
-              ),
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 6),
+              child: Align(alignment: Alignment.centerLeft, child: MikLogo(size: 36, nameColor: Colors.white)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
